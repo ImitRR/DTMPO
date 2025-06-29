@@ -142,5 +142,37 @@
     
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="script.js"></script>
+	<!-- Admin Panel -->
+<div class="admin-panel">
+    <button class="admin-toggle" id="admin-toggle">
+        <i class="fas fa-cog"></i>
+    </button>
+    <div class="admin-modal" id="admin-modal">
+        <h3>Odoo API Configuration</h3>
+        <form class="admin-form" id="api-config-form">
+            <div class="form-group">
+                <label for="odoo-url">Odoo URL</label>
+                <input type="url" id="odoo-url" required placeholder="https://your-odoo-instance.com">
+            </div>
+            <div class="form-group">
+                <label for="odoo-db">Database Name</label>
+                <input type="text" id="odoo-db" required placeholder="your-database-name">
+            </div>
+            <div class="form-group">
+                <label for="odoo-username">Username</label>
+                <input type="text" id="odoo-username" required placeholder="api-username">
+            </div>
+            <div class="form-group">
+                <label for="odoo-password">Password</label>
+                <input type="password" id="odoo-password" required placeholder="••••••••">
+            </div>
+            <button type="submit">Save Configuration</button>
+            <div class="config-saved" id="config-saved">Configuration saved!</div>
+        </form>
+        <div class="api-status disconnected" id="api-status">
+            API: Not Connected
+        </div>
+    </div>
+</div>
 </body>
 </html>
