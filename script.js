@@ -122,7 +122,7 @@ const notificationContainer = document.getElementById('notification-container');
 
 // Configuration for Glitch Proxy
 const config = {
-  proxyUrl: 'https://lead-awake-rhythm.glitch.me', // <--- Your Glitch Proxy URL
+  proxyUrl: 'https://lead-awake-rhythm.glitch.me', // <--- Your Glitch Proxy URL (NO trailing slash)
   apiKey: 's0m3R4nd0mStR1ngF0rMyPr0xyS3cur1ty_xyz123' // <--- Your API Key (must match Glitch .env)
 };
 
@@ -197,6 +197,13 @@ function updateApiStatus() {
 async function odooProxyFetch(service, method, args = [], kwargs = {}) {
     const apiStatusElement = document.getElementById('api-status');
 
+    // --- DEBUGGING LOGS ---
+    console.log('--- odooProxyFetch DEBUG ---');
+    console.log('config.proxyUrl:', config.proxyUrl);
+    console.log('config.apiKey:', config.apiKey);
+    console.log('Service:', service, 'Method:', method);
+    // --- END DEBUGGING LOGS ---
+
     if (!config.proxyUrl || config.proxyUrl === 'https://lead-awake-rhythm.glitch.me') { // Ensure this matches your actual Glitch URL
         console.error('Glitch Proxy URL is not configured. Please set config.proxyUrl.');
         apiStatusElement.textContent = 'API: Proxy URL not set';
@@ -226,8 +233,13 @@ async function odooProxyFetch(service, method, args = [], kwargs = {}) {
         return null;
     }
 
+    // --- DEBUGGING LOG ---
+    const fullUrl = `${config.proxyUrl}${endpoint}`;
+    console.log('Constructed Full URL:', fullUrl);
+    // --- END DEBUGGING LOG ---
+
     try {
-        const response = await fetch(`${config.proxyUrl}${endpoint}`, { // Use the determined endpoint
+        const response = await fetch(fullUrl, { // Use the determined endpoint
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
