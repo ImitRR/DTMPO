@@ -122,7 +122,7 @@ const notificationContainer = document.getElementById('notification-container');
 
 // Configuration for Glitch Proxy
 const config = {
-  proxyUrl: 'https://entertaining-spiny-grey.glitch.me', // <--- REPLACE THIS with your Glitch URL
+  proxyUrl: 'https://lead-awake-rhythm.glitch.me/', // <--- REPLACE THIS with your Glitch URL
   apiKey: 's0m3R4nd0mStR1ngF0rMyPr0xyS3cur1ty_xyz123' // <--- REPLACE THIS with the exact API_KEY you set in Glitch's .env
 };
 
