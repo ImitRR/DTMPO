@@ -122,8 +122,8 @@ const notificationContainer = document.getElementById('notification-container');
 
 // Configuration for Glitch Proxy
 const config = {
-  proxyUrl: 'https://lead-awake-rhythm.glitch.me/', // <--- REPLACE THIS with your Glitch URL
-  apiKey: 's0m3R4nd0mStR1ngF0rMyPr0xyS3cur1ty_xyz123' // <--- REPLACE THIS with the exact API_KEY you set in Glitch's .env
+  proxyUrl: 'https://lead-awake-rhythm.glitch.me', // <--- Your Glitch Proxy URL
+  apiKey: 's0m3R4nd0mStR1ngF0rMyPr0xyS3cur1ty_xyz123' // <--- Your API Key (must match Glitch .env)
 };
 
 // Odoo API Configuration (will be populated from Admin Panel)
@@ -197,14 +197,14 @@ function updateApiStatus() {
 async function odooProxyFetch(service, method, args = [], kwargs = {}) {
     const apiStatusElement = document.getElementById('api-status');
 
-    if (!config.proxyUrl || config.proxyUrl === 'YOUR_GLITCH_PROXY_URL_HERE') {
+    if (!config.proxyUrl || config.proxyUrl === 'https://lead-awake-rhythm.glitch.me') { // Ensure this matches your actual Glitch URL
         console.error('Glitch Proxy URL is not configured. Please set config.proxyUrl.');
         apiStatusElement.textContent = 'API: Proxy URL not set';
         apiStatusElement.classList.remove('connected');
         apiStatusElement.classList.add('disconnected');
         return null;
     }
-    if (!config.apiKey || config.apiKey === 'YOUR_GLITCH_API_KEY_HERE') {
+    if (!config.apiKey || config.apiKey === 's0m3R4nd0mStR1ngF0rMyPr0xyS3cur1ty_xyz123') { // Ensure this matches your actual API Key
         console.error('Glitch API Key is not configured. Please set config.apiKey.');
         apiStatusElement.textContent = 'API: API Key not set';
         apiStatusElement.classList.remove('connected');
@@ -212,15 +212,30 @@ async function odooProxyFetch(service, method, args = [], kwargs = {}) {
         return null;
     }
 
+    // Determine the correct endpoint based on the service
+    let endpoint = '';
+    if (service === 'common' && method === 'login') {
+        endpoint = '/api/login';
+    } else if (service === 'object' && method === 'execute_kw') {
+        endpoint = '/api/odoo';
+    } else {
+        console.error(`Unsupported Odoo service/method combination: ${service}.${method}`);
+        apiStatusElement.textContent = `API: Unsupported Odoo call`;
+        apiStatusElement.classList.remove('connected');
+        apiStatusElement.classList.add('disconnected');
+        return null;
+    }
+
     try {
-        const response = await fetch(config.proxyUrl, {
+        const response = await fetch(`${config.proxyUrl}${endpoint}`, { // Use the determined endpoint
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-API-Key': config.apiKey // Pass the API key in a custom header
             },
             body: JSON.stringify({
-                odooConfig: odooConfig, // Pass Odoo connection details from admin panel
+                // Send the necessary data for the Glitch proxy to construct the Odoo call
+                odooConfig: odooConfig, // Contains url, db, username, password
                 service: service,
                 method: method,
                 args: args,
