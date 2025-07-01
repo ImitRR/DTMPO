@@ -837,9 +837,6 @@ async function placeOrder() {
 
         // 3. Confirm Sales Order to trigger stock movements
         console.log('Attempting to confirm sales order in Odoo...');
-        // This step is crucial for stock deduction in Odoo.
-        // The 'action_confirm' method on 'sale.order' typically confirms the order
-        // and generates the associated picking (delivery order) which then deducts stock.
         const confirmResult = await callOdooMethod('sale.order', 'action_confirm', [[saleOrderId]]);
 
         if (!confirmResult) {
@@ -848,6 +845,33 @@ async function placeOrder() {
         } else {
             console.log('Sales Order confirmed in Odoo. Result:', confirmResult);
         }
+
+        // --- NEW STEP: Find and Validate the Picking (Delivery Order) ---
+        console.log('Attempting to find associated picking for sales order:', saleOrderId);
+        // Fetch the sales order details to get its picking_ids
+        const salesOrderDetails = await callOdooMethod('sale.order', 'read', [saleOrderId], { fields: ['picking_ids'] });
+        
+        let pickingId = null;
+        if (salesOrderDetails && salesOrderDetails.length > 0 && salesOrderDetails[0].picking_ids && salesOrderDetails[0].picking_ids.length > 0) {
+            pickingId = salesOrderDetails[0].picking_ids[0]; // Get the first picking ID
+            console.log('Found picking ID:', pickingId, 'for Sales Order:', saleOrderId);
+
+            console.log('Attempting to validate picking:', pickingId);
+            // Call action_done on the stock.picking to validate it and deduct stock
+            const validatePickingResult = await callOdooMethod('stock.picking', 'action_done', [[pickingId]]);
+
+            if (!validatePickingResult) {
+                console.error('Failed to validate picking in Odoo. Stock might not have been deducted.');
+                showCartNotification('Order placed, but failed to deduct stock in Odoo. Please check Odoo manually.');
+            } else {
+                console.log('Picking validated successfully. Result:', validatePickingResult);
+                showCartNotification('Order placed and stock deducted!');
+            }
+        } else {
+            console.warn('No picking found for sales order:', saleOrderId, '. Stock might not be deducted automatically.');
+            showCartNotification('Order placed, but no picking found to deduct stock. Check Odoo configuration.');
+        }
+        // --- END NEW STEP ---
 
         // Simulate order placement (local data)
         const order = {
@@ -859,7 +883,7 @@ async function placeOrder() {
             odooSaleOrderId: saleOrderId // Store Odoo's order ID
         };
 
-        console.log('Order placed successfully:', order);
+        console.log('Order process completed:', order);
 
         // Show confirmation
         checkoutModal.style.display = 'none';
@@ -886,12 +910,12 @@ async function placeOrder() {
                 document.getElementById('order-confirmation-modal').style.display = 'none';
 
                 // IMPORTANT: Re-fetch products from Odoo to get updated stock levels
-                // Removed: products.forEach(p => p.stock = p.initialStock);
+                // Removed: products.forEach(p => p.stock = p.initialStock); // THIS LINE IS REMOVED
                 // Add a small delay to allow Odoo to fully process stock deduction
                 setTimeout(() => {
                     console.log('Re-fetching products after order to update stock display...');
                     fetchOdooProducts(); 
-                }, 1000); // 1 second delay
+                }, 1500); // Increased delay to 1.5 seconds
             });
         }
 
