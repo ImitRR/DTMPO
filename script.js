@@ -122,8 +122,8 @@ const notificationContainer = document.getElementById('notification-container');
 
 // Configuration for Glitch Proxy
 const config = {
-  proxyUrl: 'https://lead-awake-rhythm.glitch.me', // <--- IMPORTANT: MANUALLY RE-TYPE THIS URL
-  apiKey: 's0m3R4nd0mStR1ngF0rMyPr0xyS3cur1ty_xyz123' // <--- IMPORTANT: MANUALLY RE-TYPE THIS API KEY
+  proxyUrl: 'https://lead-awake-rhythm.glitch.me', // <--- Your Glitch Proxy URL (NO trailing slash)
+  apiKey: 's0m3R4nd0mStR1ngF0rMyPr0xyS3cur1ty_xyz123' // <--- Your API Key (must match Glitch .env)
 };
 
 // Odoo API Configuration (will be populated from Admin Panel)
@@ -731,7 +731,7 @@ function showCheckout() {
 }
 
 // Place order function
-function placeOrder() {
+async function placeOrder() {
     const name = document.getElementById('name').value;
     const email = document.getElementById('email').value;
     const address = document.getElementById('address').value;
@@ -746,29 +746,26 @@ function placeOrder() {
         const cardCvc = document.getElementById('card-cvc') ? document.getElementById('card-cvc').value : '';
 
         if (!cardType) {
-            showCartNotification('Please select a card type'); // Changed from alert
+            showCartNotification('Please select a card type');
             return;
         }
 
-        // Validate card number (16 digits, 15 for Amex)
         const cardLengthValid = (cardType === 'amex' && cardNumber.length === 15) ||
                               (cardType !== 'amex' && cardNumber.length === 16);
 
         if (!cardLengthValid || !/^\d+$/.test(cardNumber)) {
-            showCartNotification('Please enter a valid card number'); // Changed from alert
+            showCartNotification('Please enter a valid card number');
             return;
         }
 
-        // Validate expiry date (MM/YY format)
         if (!/^\d{2}\/\d{2}$/.test(cardExpiry)) {
-            showCartNotification('Please enter expiry date in MM/YY format'); // Changed from alert
+            showCartNotification('Please enter expiry date in MM/YY format');
             return;
         }
 
-        // Validate CVC (3-4 digits)
         const cvcLength = cardType === 'amex' ? 4 : 3;
         if (!new RegExp(`^\\d{${cvcLength}}$`).test(cardCvc)) {
-            showCartNotification(`Please enter a valid ${cvcLength}-digit CVC`); // Changed from alert
+            showCartNotification(`Please enter a valid ${cvcLength}-digit CVC`);
             return;
         }
 
@@ -784,46 +781,112 @@ function placeOrder() {
         };
     }
 
-    // In a real app, you would send this data to your server
-    const order = {
-        customer: { name, email, address },
-        payment: paymentDetails,
-        items: cart,
-        total: calculateCartTotal(),
-        date: new Date().toISOString()
-    };
+    showCartNotification('Processing your order...');
 
-    console.log('Order placed:', order);
+    try {
+        // 1. Find or Create Customer (res.partner)
+        let customerId;
+        const existingPartners = await callOdooMethod('res.partner', 'search_read', [[['email', '=', email]]], { fields: ['id'] });
+        
+        if (existingPartners && existingPartners.length > 0) {
+            customerId = existingPartners[0].id;
+            console.log('Found existing customer in Odoo:', customerId);
+        } else {
+            const newPartner = await callOdooMethod('res.partner', 'create', [{
+                name: name,
+                email: email,
+                street: address,
+                customer_rank: 1 // Mark as a customer
+            }]);
+            if (newPartner) {
+                customerId = newPartner; // Odoo create returns the ID of the new record
+                console.log('Created new customer in Odoo:', customerId);
+            } else {
+                throw new Error('Failed to create customer in Odoo.');
+            }
+        }
 
-    // Show confirmation
-    checkoutModal.style.display = 'none'; // Close checkout modal
-    document.getElementById('order-confirmation-modal').style.display = 'flex'; // Show confirmation modal
+        if (!customerId) {
+            throw new Error('Customer ID could not be determined for Odoo order.');
+        }
 
-    // Update order details in confirmation modal
-    const orderDetailsElement = document.getElementById('order-details');
-    if (orderDetailsElement) { // Check if element exists
-        orderDetailsElement.innerHTML = `
-            <i class="fas fa-check-circle success-icon"></i>
-            <h3>Order Confirmed!</h3>
-            <p>Thank you for your purchase, ${name}.</p>
-            <p>A confirmation has been sent to ${email}.</p>
-            <button class="btn" id="return-to-shop-btn">Return to Shop</button>
-        `;
-    }
+        // 2. Create Sales Order (sale.order)
+        const orderLines = cart.map(item => [0, 0, {
+            product_id: item.id, // Odoo product ID
+            product_uom_qty: item.quantity,
+            price_unit: item.price,
+        }]);
 
+        const saleOrderData = {
+            partner_id: customerId,
+            order_line: orderLines,
+            // You can add more fields if needed, e.g., 'payment_term_id', 'client_order_ref'
+        };
 
-    const returnToShopBtn = document.getElementById('return-to-shop-btn');
-    if (returnToShopBtn) { // Check if element exists
-        returnToShopBtn.addEventListener('click', () => {
-            // Reset cart
-            cart = [];
-            updateCart();
-            document.getElementById('order-confirmation-modal').style.display = 'none';
+        const saleOrderId = await callOdooMethod('sale.order', 'create', [saleOrderData]);
 
-            // Reset product stock (for demo purposes)
-            products.forEach(p => p.stock = p.initialStock);
-            displayProducts();
-        });
+        if (!saleOrderId) {
+            throw new Error('Failed to create sales order in Odoo.');
+        }
+        console.log('Created Sales Order in Odoo:', saleOrderId);
+
+        // 3. Confirm Sales Order to trigger stock movements (optional, depending on Odoo config)
+        // This step is crucial for stock deduction in Odoo.
+        const confirmResult = await callOdooMethod('sale.order', 'action_confirm', [[saleOrderId]]);
+
+        if (!confirmResult) {
+            console.warn('Failed to confirm sales order in Odoo. Stock might not be deducted automatically.');
+            // Continue, but warn the user or log this for admin review
+        } else {
+            console.log('Sales Order confirmed in Odoo:', saleOrderId);
+        }
+
+        // Simulate order placement (local data)
+        const order = {
+            customer: { name, email, address },
+            payment: paymentDetails,
+            items: cart,
+            total: calculateCartTotal(),
+            date: new Date().toISOString(),
+            odooSaleOrderId: saleOrderId // Store Odoo's order ID
+        };
+
+        console.log('Order placed successfully:', order);
+
+        // Show confirmation
+        checkoutModal.style.display = 'none';
+        document.getElementById('order-confirmation-modal').style.display = 'flex';
+
+        const orderDetailsElement = document.getElementById('order-details');
+        if (orderDetailsElement) {
+            orderDetailsElement.innerHTML = `
+                <i class="fas fa-check-circle success-icon"></i>
+                <h3>Order Confirmed!</h3>
+                <p>Thank you for your purchase, ${name}.</p>
+                <p>A confirmation has been sent to ${email}.</p>
+                <p>Odoo Sales Order ID: <strong>${saleOrderId}</strong></p>
+                <button class="btn" id="return-to-shop-btn">Return to Shop</button>
+            `;
+        }
+
+        const returnToShopBtn = document.getElementById('return-to-shop-btn');
+        if (returnToShopBtn) {
+            returnToShopBtn.addEventListener('click', () => {
+                // Reset cart
+                cart = [];
+                updateCart();
+                document.getElementById('order-confirmation-modal').style.display = 'none';
+
+                // Re-fetch products from Odoo to get updated stock levels
+                fetchOdooProducts(); 
+            });
+        }
+
+    } catch (error) {
+        console.error('Error placing order with Odoo:', error);
+        showCartNotification(`Failed to place order: ${error.message || 'An unexpected error occurred.'}`);
+        // Keep checkout modal open or show an error message there
+        checkoutModal.style.display = 'flex'; // Keep it open on error
     }
 }
 
