@@ -204,13 +204,11 @@ async function odooProxyFetch(service, method, args = [], kwargs = {}) {
     console.log('Service:', service, 'Method:', method);
     // --- END DEBUGGING LOGS ---
 
-    if (!config.proxyUrl || config.proxyUrl === 'https://lead-awake-rhythm.glitch.me') { // Ensure this matches your actual Glitch URL
-        console.error('Glitch Proxy URL is not configured. Please set config.proxyUrl.');
-        apiStatusElement.textContent = 'API: Proxy URL not set';
-        apiStatusElement.classList.remove('connected');
-        apiStatusElement.classList.add('disconnected');
-        return null;
-    }
+     if (!config.proxyUrl) { // This is the simplified check
+    console.error('Glitch Proxy URL is not configured. Please set config.proxyUrl in script.js.');
+    // ... rest of the error handling
+    return null;
+}
     if (!config.apiKey || config.apiKey === 's0m3R4nd0mStR1ngF0rMyPr0xyS3cur1ty_xyz123') { // Ensure this matches your actual API Key
         console.error('Glitch API Key is not configured. Please set config.apiKey.');
         apiStatusElement.textContent = 'API: API Key not set';
