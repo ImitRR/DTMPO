@@ -412,7 +412,7 @@ function displayProducts() {
         productCard.className = 'product-card';
         productCard.innerHTML = `
             <div class="product-image">
-                <img src="${product.image}" alt="${product.name}" onerror="this.onerror=null;this.src='https://placehold.co/250x250/cccccc/000000?text=Image+Not+Found';">
+                <img src="${product.image}" alt="${product.name}" onerror="this.onerror=null;this.src='https://placehold.co/250x250/cccccc/000000?text=No+Image';">
             </div>
             <div class="product-info">
                 <h3 class="product-title">${product.name}</h3>
@@ -786,12 +786,14 @@ async function placeOrder() {
     try {
         // 1. Find or Create Customer (res.partner)
         let customerId;
+        console.log('Attempting to find or create customer in Odoo...');
         const existingPartners = await callOdooMethod('res.partner', 'search_read', [[['email', '=', email]]], { fields: ['id'] });
         
         if (existingPartners && existingPartners.length > 0) {
             customerId = existingPartners[0].id;
-            console.log('Found existing customer in Odoo:', customerId);
+            console.log('Found existing customer in Odoo. ID:', customerId);
         } else {
+            console.log('Customer not found, creating new one...');
             const newPartner = await callOdooMethod('res.partner', 'create', [{
                 name: name,
                 email: email,
@@ -800,7 +802,7 @@ async function placeOrder() {
             }]);
             if (newPartner) {
                 customerId = newPartner; // Odoo create returns the ID of the new record
-                console.log('Created new customer in Odoo:', customerId);
+                console.log('Created new customer in Odoo. ID:', customerId);
             } else {
                 throw new Error('Failed to create customer in Odoo.');
             }
@@ -811,8 +813,11 @@ async function placeOrder() {
         }
 
         // 2. Create Sales Order (sale.order)
+        console.log('Attempting to create sales order in Odoo...');
+        // Odoo uses special commands for many-to-many or one-to-many relationships.
+        // [0, 0, {values}] creates a new record and links it.
         const orderLines = cart.map(item => [0, 0, {
-            product_id: item.id, // Odoo product ID
+            product_id: item.id, // This is the Odoo product ID
             product_uom_qty: item.quantity,
             price_unit: item.price,
         }]);
@@ -828,17 +833,20 @@ async function placeOrder() {
         if (!saleOrderId) {
             throw new Error('Failed to create sales order in Odoo.');
         }
-        console.log('Created Sales Order in Odoo:', saleOrderId);
+        console.log('Created Sales Order in Odoo. ID:', saleOrderId);
 
-        // 3. Confirm Sales Order to trigger stock movements (optional, depending on Odoo config)
+        // 3. Confirm Sales Order to trigger stock movements
+        console.log('Attempting to confirm sales order in Odoo...');
         // This step is crucial for stock deduction in Odoo.
+        // The 'action_confirm' method on 'sale.order' typically confirms the order
+        // and generates the associated picking (delivery order) which then deducts stock.
         const confirmResult = await callOdooMethod('sale.order', 'action_confirm', [[saleOrderId]]);
 
         if (!confirmResult) {
-            console.warn('Failed to confirm sales order in Odoo. Stock might not be deducted automatically.');
+            console.warn('Failed to confirm sales order in Odoo. Stock might not be deducted automatically. Check Odoo logs/configuration.');
             // Continue, but warn the user or log this for admin review
         } else {
-            console.log('Sales Order confirmed in Odoo:', saleOrderId);
+            console.log('Sales Order confirmed in Odoo. Result:', confirmResult);
         }
 
         // Simulate order placement (local data)
@@ -877,8 +885,13 @@ async function placeOrder() {
                 updateCart();
                 document.getElementById('order-confirmation-modal').style.display = 'none';
 
-                // Re-fetch products from Odoo to get updated stock levels
-                fetchOdooProducts(); 
+                // IMPORTANT: Re-fetch products from Odoo to get updated stock levels
+                // Removed: products.forEach(p => p.stock = p.initialStock);
+                // Add a small delay to allow Odoo to fully process stock deduction
+                setTimeout(() => {
+                    console.log('Re-fetching products after order to update stock display...');
+                    fetchOdooProducts(); 
+                }, 1000); // 1 second delay
             });
         }
 
