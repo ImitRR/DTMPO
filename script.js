@@ -122,8 +122,8 @@ const notificationContainer = document.getElementById('notification-container');
 
 // Configuration for Glitch Proxy
 const config = {
-  proxyUrl: 'https://lead-awake-rhythm.glitch.me', // <--- Your Glitch Proxy URL (NO trailing slash)
-  apiKey: 's0m3R4nd0mStR1ngF0rMyPr0xyS3cur1ty_xyz123' // <--- Your API Key (must match Glitch .env)
+  proxyUrl: 'https://lead-awake-rhythm.glitch.me', // <--- IMPORTANT: MANUALLY RE-TYPE THIS URL
+  apiKey: 's0m3R4nd0mStR1ngF0rMyPr0xyS3cur1ty_xyz123' // <--- IMPORTANT: MANUALLY RE-TYPE THIS API KEY
 };
 
 // Odoo API Configuration (will be populated from Admin Panel)
@@ -146,8 +146,17 @@ function loadOdooConfig() {
         if (document.getElementById('odoo-url')) {
             document.getElementById('odoo-url').value = odooConfig.url;
             document.getElementById('odoo-db').value = odooConfig.db;
-            document.getElementById('odoo-username').value = odooConfig.username;
-            document.getElementById('odoo-password').value = odooConfig.password;
+            // Corrected: Add autocomplete attribute to username and password fields
+            const usernameInput = document.getElementById('odoo-username');
+            if (usernameInput) {
+                usernameInput.value = odooConfig.username;
+                usernameInput.setAttribute('autocomplete', 'username');
+            }
+            const passwordInput = document.getElementById('odoo-password');
+            if (passwordInput) {
+                passwordInput.value = odooConfig.password;
+                passwordInput.setAttribute('autocomplete', 'current-password');
+            }
         }
         updateApiStatus();
     }
@@ -187,29 +196,28 @@ function updateApiStatus() {
 /**
  * Makes a request to the Glitch proxy to interact with Odoo.
  * This function abstracts the communication with your Glitch proxy,
- * which in turn handles the XML-RPC calls to Odoo.
- * @param {string} service The Odoo XML-RPC service (e.g., 'common', 'object').
- * @param {string} method The Odoo XML-RPC method (e.g., 'login', 'execute_kw').
- * @param {Array} args Positional arguments for the Odoo method.
- * @param {Object} [kwargs={}] Keyword arguments (dictionary) for the method.
+ * which in turn handles the JSON-RPC 2.0 calls to Odoo's /web/session/authenticate or /web/dataset/call_kw.
+ * @param {string} proxyEndpointType The type of Odoo call for the proxy ('login' or 'odoo_call').
+ * @param {Object} payload The specific payload to send to the proxy.
  * @returns {Promise<any>} The response data from Odoo via the proxy, or null on error.
  */
-async function odooProxyFetch(service, method, args = [], kwargs = {}) {
+async function odooProxyFetch(proxyEndpointType, payload) {
     const apiStatusElement = document.getElementById('api-status');
 
     // --- DEBUGGING LOGS ---
     console.log('--- odooProxyFetch DEBUG ---');
     console.log('config.proxyUrl:', config.proxyUrl);
     console.log('config.apiKey:', config.apiKey);
-    console.log('Service:', service, 'Method:', method);
+    console.log('Proxy Endpoint Type:', proxyEndpointType); // Changed from 'Service'
     // --- END DEBUGGING LOGS ---
 
-     if (!config.proxyUrl) { // This is the simplified check
-    console.error('Glitch Proxy URL is not configured. Please set config.proxyUrl in script.js.');
-    // ... rest of the error handling
-    return null;
-}
-     // SIMPLIFIED CHECK: Only check if apiKey is empty/falsy.
+    if (!config.proxyUrl) {
+        console.error('Glitch Proxy URL is not configured. Please set config.proxyUrl in script.js.');
+        apiStatusElement.textContent = 'API: Proxy URL not set';
+        apiStatusElement.classList.remove('connected');
+        apiStatusElement.classList.add('disconnected');
+        return null;
+    }
     if (!config.apiKey) {
         console.error('Glitch API Key is not configured. Please set config.apiKey in script.js.');
         apiStatusElement.textContent = 'API: API Key not set';
@@ -218,15 +226,14 @@ async function odooProxyFetch(service, method, args = [], kwargs = {}) {
         return null;
     }
 
-    // Determine the correct endpoint based on the service
     let endpoint = '';
-    if (service === 'common' && method === 'login') {
+    if (proxyEndpointType === 'login') {
         endpoint = '/api/login';
-    } else if (service === 'object' && method === 'execute_kw') {
-        endpoint = '/api/odoo';
+    } else if (proxyEndpointType === 'odoo_call') {
+        endpoint = '/api/odoo'; // This is the endpoint for general Odoo API calls
     } else {
-        console.error(`Unsupported Odoo service/method combination: ${service}.${method}`);
-        apiStatusElement.textContent = `API: Unsupported Odoo call`;
+        console.error(`Unsupported Odoo proxy call type: ${proxyEndpointType}`);
+        apiStatusElement.textContent = `API: Unsupported Odoo call type`;
         apiStatusElement.classList.remove('connected');
         apiStatusElement.classList.add('disconnected');
         return null;
@@ -238,21 +245,13 @@ async function odooProxyFetch(service, method, args = [], kwargs = {}) {
     // --- END DEBUGGING LOG ---
 
     try {
-        const response = await fetch(fullUrl, { // Use the determined endpoint
+        const response = await fetch(fullUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-API-Key': config.apiKey // Pass the API key in a custom header
+                'X-API-Key': config.apiKey
             },
-            body: JSON.stringify({
-                // Send the necessary data for the Glitch proxy to construct the Odoo call
-                odooConfig: odooConfig, // Contains url, db, username, password
-                service: service,
-                method: method,
-                args: args,
-                kwargs: kwargs,
-                uid: odooUid // Pass current Odoo UID if available
-            })
+            body: JSON.stringify(payload) // Send the entire payload directly
         });
 
         if (!response.ok) {
@@ -262,6 +261,7 @@ async function odooProxyFetch(service, method, args = [], kwargs = {}) {
 
         const data = await response.json();
         if (data.error) {
+            // Odoo returns 200 OK even for errors, but the error object is in data.error
             throw new Error(`Odoo Error via Proxy: ${data.error.message || JSON.stringify(data.error)}`);
         }
         return data.result; // Assuming the proxy returns Odoo's 'result' directly
@@ -290,12 +290,11 @@ async function odooLogin() {
     }
 
     try {
-        // Use odooProxyFetch to call the common.login method on the proxy
-        const result = await odooProxyFetch('common', 'login', [
-            odooConfig.db,
-            odooConfig.username,
-            odooConfig.password
-        ]);
+        const loginPayload = {
+            odooConfig: odooConfig // Send the full odooConfig
+        };
+        // Call odooProxyFetch with 'login' type
+        const result = await odooProxyFetch('login', loginPayload);
 
         if (result) { // result directly contains uid on successful authentication
             odooUid = result; // Store the user ID as UID
@@ -320,7 +319,7 @@ async function odooLogin() {
 }
 
 /**
- * Generic function to call any Odoo model method using execute_kw via Glitch proxy.
+ * Generic function to call any Odoo model method using call_kw via Glitch proxy.
  * Automatically attempts to log in if not already authenticated.
  * @param {string} model - The Odoo model name (e.g., 'product.product').
  * @param {string} method - The method to call on the model (e.g., 'search_read', 'create', 'write').
@@ -339,16 +338,18 @@ async function callOdooMethod(model, method, args = [], kwargs = {}) {
         }
     }
 
-    // Use odooProxyFetch for object.execute_kw calls
-    const result = await odooProxyFetch('object', 'execute_kw', [
-        odooConfig.db,
-        odooUid,
-        odooConfig.password, // Still pass password as per Odoo execute_kw signature
-        model,
-        method,
-        args,
-        kwargs
-    ]);
+    // CORRECTED PAYLOAD STRUCTURE for /web/dataset/call_kw as expected by Glitch proxy
+    const callKwPayload = {
+        odooConfig: odooConfig, // Pass odooConfig for proxy context (contains db, etc.)
+        uid: odooUid,
+        model: model,   // Direct 'model' parameter for Odoo's call_kw
+        method: method, // Direct 'method' parameter for Odoo's call_kw
+        args: args,     // Positional arguments for the Odoo method
+        kwargs: kwargs  // Keyword arguments for the Odoo method
+    };
+
+    // Call odooProxyFetch with 'odoo_call' type and the new payload
+    const result = await odooProxyFetch('odoo_call', callKwPayload);
 
     if (result === null) {
         console.error(`Odoo API error for ${model}.${method} via proxy.`);
