@@ -209,8 +209,9 @@ async function odooProxyFetch(service, method, args = [], kwargs = {}) {
     // ... rest of the error handling
     return null;
 }
-    if (!config.apiKey || config.apiKey === 's0m3R4nd0mStR1ngF0rMyPr0xyS3cur1ty_xyz123') { // Ensure this matches your actual API Key
-        console.error('Glitch API Key is not configured. Please set config.apiKey.');
+     // SIMPLIFIED CHECK: Only check if apiKey is empty/falsy.
+    if (!config.apiKey) {
+        console.error('Glitch API Key is not configured. Please set config.apiKey in script.js.');
         apiStatusElement.textContent = 'API: API Key not set';
         apiStatusElement.classList.remove('connected');
         apiStatusElement.classList.add('disconnected');
