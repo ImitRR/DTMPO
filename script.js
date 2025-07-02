@@ -155,7 +155,6 @@ function loadOdooConfig() {
             }
             const passwordInput = document.getElementById('odoo-password');
             if (passwordInput) {
-                // FIX: Corrected typo from passwordPinput to passwordInput
                 passwordInput.value = odooConfig.password;
                 passwordInput.setAttribute('autocomplete', 'current-password');
             }
@@ -898,44 +897,19 @@ async function placeOrder() {
             pickingId = salesOrderDetails[0].picking_ids[0]; // Get the first picking ID
             console.log('Found picking ID:', pickingId, 'for Sales Order:', saleOrderId);
 
-            // --- CRITICAL CHANGE: Set quantity_done for each move line before validating ---
-            console.log('Fetching picking details to set quantities done...');
-            const pickingDetails = await callOdooMethod('stock.picking', 'read', [pickingId], { fields: ['move_line_ids'] });
-            
-            if (pickingDetails && pickingDetails.length > 0 && pickingDetails[0].move_line_ids && pickingDetails[0].move_line_ids.length > 0) {
-                const moveLineIds = pickingDetails[0].move_line_ids;
-                
-                // Fetch details of each move line to get product_uom_qty
-                const moveLines = await callOdooMethod('stock.move.line', 'read', moveLineIds, { fields: ['product_id', 'product_uom_qty'] });
-                
-                // Check if moveLines is not null before mapping
-                if (moveLines) { 
-                    // Prepare updates for each move line: set qty_done = product_uom_qty
-                    const moveLineUpdates = moveLines.map(line => [1, line.id, { 'qty_done': line.product_uom_qty }]);
-                    
-                    console.log('Updating move lines with quantities done:', moveLineUpdates);
-                    const updateMoveLinesResult = await callOdooMethod('stock.picking', 'write', [[pickingId], { 'move_line_ids': moveLineUpdates }]);
-                    
-                    if (!updateMoveLinesResult) {
-                        console.error('Failed to update move lines with quantities done.');
-                        showCartNotification('Order placed, but failed to set quantities for delivery. Check Odoo manually.');
-                        // Don't proceed to validate if setting quantities failed
-                        throw new Error('Failed to set quantities for delivery.');
-                    }
-                    console.log('Move lines updated successfully.');
-                } else {
-                    console.error('Failed to read move lines. Cannot set quantities done.');
-                    showCartNotification('Order placed, but failed to read delivery details. Check Odoo manually.');
-                    throw new Error('Failed to read delivery move lines.'); // Re-throw to trigger catch block
-                }
+            // --- REVISED: Try action_assign first, then action_done directly ---
+            console.log('Attempting to assign quantities to picking:', pickingId);
+            const assignResult = await callOdooMethod('stock.picking', 'action_assign', [[pickingId]]);
+
+            if (!assignResult) {
+                console.warn('Failed to assign quantities for picking. Proceeding to validate anyway, but stock might not deduct.');
+                showCartNotification('Order placed, but failed to reserve stock. Check Odoo manually.');
             } else {
-                console.warn('No move lines found for picking:', pickingId, '. Cannot set quantities done. This might be an Odoo configuration issue.');
-                showCartNotification('Order placed, but no delivery items found. Check Odoo configuration.');
-                // We will still attempt to validate, but it might fail if no lines are present.
+                console.log('Quantities assigned successfully. Result:', assignResult);
             }
 
             console.log('Attempting to validate picking:', pickingId);
-            // Now call action_done. With quantities set, this should ideally succeed.
+            // Now call action_done directly.
             const validatePickingResult = await callOdooMethod('stock.picking', 'action_done', [[pickingId]]);
 
             if (!validatePickingResult) {
