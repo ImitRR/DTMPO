@@ -926,7 +926,7 @@ async function placeOrder() {
                 } else {
                     console.error('Failed to read move lines. Cannot set quantities done.');
                     showCartNotification('Order placed, but failed to read delivery details. Check Odoo manually.');
-                    throw new Error('Failed to read delivery move lines.');
+                    throw new Error('Failed to read delivery move lines.'); // Re-throw to trigger catch block
                 }
             } else {
                 console.warn('No move lines found for picking:', pickingId, '. Cannot set quantities done. This might be an Odoo configuration issue.');
@@ -951,19 +951,8 @@ async function placeOrder() {
         }
         // --- END NEW STEP ---
 
-        // Simulate order placement (local data)
-        const order = {
-            customer: { name, email, address },
-            payment: paymentDetails,
-            items: cart,
-            total: calculateCartTotal(),
-            date: new Date().toISOString(),
-            odooSaleOrderId: saleOrderId // Store Odoo's order ID
-        };
-
-        console.log('Order process completed:', order);
-
-        // Show confirmation
+        console.log('Order process completed: Success path.'); // Log for success path
+        // Show confirmation only if the entire try block completes without throwing
         checkoutModal.style.display = 'none';
         document.getElementById('order-confirmation-modal').style.display = 'flex';
 
