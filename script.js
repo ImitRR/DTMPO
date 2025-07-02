@@ -344,7 +344,7 @@ async function callOdooMethod(model, method, args = [], kwargs = {}) {
         const loggedIn = await odooLogin();
         if (!loggedIn) {
             showCartNotification('Failed to connect to Odoo for data retrieval. Please check configuration.');
-            stopStockPolling(); // Stop polling if auto-login fails
+            // Polling will be stopped by odooLogin if it fails
             return null;
         }
     }
@@ -364,7 +364,7 @@ async function callOdooMethod(model, method, args = [], kwargs = {}) {
 
     if (result === null) {
         console.error(`Odoo API error for ${model}.${method} via proxy.`);
-        // The odooProxyFetch already handles stopping polling for session errors.
+        // odooProxyFetch already handles stopping polling for session errors.
         // For other generic Odoo errors, we want polling to continue.
         return null;
     }
