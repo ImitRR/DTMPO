@@ -155,6 +155,7 @@ function loadOdooConfig() {
             }
             const passwordInput = document.getElementById('odoo-password');
             if (passwordInput) {
+                // FIX: Corrected typo from passwordPinput to passwordInput
                 passwordInput.value = odooConfig.password;
                 passwordInput.setAttribute('autocomplete', 'current-password');
             }
@@ -907,7 +908,8 @@ async function placeOrder() {
                 // Fetch details of each move line to get product_uom_qty
                 const moveLines = await callOdooMethod('stock.move.line', 'read', moveLineIds, { fields: ['product_id', 'product_uom_qty'] });
                 
-                if (moveLines) { // Check if moveLines is not null before mapping
+                // Check if moveLines is not null before mapping
+                if (moveLines) { 
                     // Prepare updates for each move line: set qty_done = product_uom_qty
                     const moveLineUpdates = moveLines.map(line => [1, line.id, { 'qty_done': line.product_uom_qty }]);
                     
