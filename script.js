@@ -262,16 +262,21 @@ async function odooProxyFetch(proxyEndpointType, payload) {
 
         const data = await response.json();
         if (data.error) {
-            // Odoo returns 200 OK even for errors, but the error object is in data.error
+            // Check if the error is specifically about authentication/session
+            if (data.error.message && (data.error.message.includes('Session expired') || data.error.message.includes('Authentication failed'))) {
+                console.error('Odoo session expired or authentication failed. Stopping polling.');
+                stopStockPolling(); // Only stop polling for clear auth issues
+            }
             throw new Error(`Odoo Error via Proxy: ${data.error.message || JSON.stringify(data.error)}`);
         }
         return data.result; // Assuming the proxy returns Odoo's 'result' directly
     } catch (error) {
         console.error('Error during Odoo fetch via proxy:', error);
-        apiStatusElement.textContent = `API: Disconnected (${error.message})`;
-        apiStatusElement.classList.remove('connected');
-        apiStatusElement.classList.add('disconnected');
-        return null; // Return null on error
+        // Do NOT stop polling here for generic errors. Let polling continue.
+        // The specific logic in odooLogin handles initial auth and start/stop.
+        // If this fails, it means the *method* failed, not necessarily the session.
+        // The next poll will re-attempt.
+        return null;
     }
 }
 
@@ -359,8 +364,8 @@ async function callOdooMethod(model, method, args = [], kwargs = {}) {
 
     if (result === null) {
         console.error(`Odoo API error for ${model}.${method} via proxy.`);
-        // If an Odoo API call fails (e.g., session expired), stop polling
-        stopStockPolling(); 
+        // The odooProxyFetch already handles stopping polling for session errors.
+        // For other generic Odoo errors, we want polling to continue.
         return null;
     }
     return result;
@@ -963,6 +968,10 @@ async function placeOrder() {
         showCartNotification(`Failed to place order: ${error.message || 'An unexpected error occurred.'}`);
         // Keep checkout modal open or show an error message there
         checkoutModal.style.display = 'flex'; // Keep it open on error
+    } finally {
+        // Ensure polling restarts even if the order placement had an error
+        console.log('Order process finished. Ensuring stock polling is active.');
+        startStockPolling(); 
     }
 }
 
