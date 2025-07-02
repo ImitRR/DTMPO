@@ -897,7 +897,7 @@ async function placeOrder() {
             pickingId = salesOrderDetails[0].picking_ids[0]; // Get the first picking ID
             console.log('Found picking ID:', pickingId, 'for Sales Order:', saleOrderId);
 
-            // --- REVISED: Try action_assign first, then action_done directly ---
+            // --- REVISED: Try action_assign first, then action_done directly with context ---
             console.log('Attempting to assign quantities to picking:', pickingId);
             const assignResult = await callOdooMethod('stock.picking', 'action_assign', [[pickingId]]);
 
@@ -909,8 +909,13 @@ async function placeOrder() {
             }
 
             console.log('Attempting to validate picking:', pickingId);
-            // Now call action_done directly.
-            const validatePickingResult = await callOdooMethod('stock.picking', 'action_done', [[pickingId]]);
+            // Now call action_done directly with the necessary context.
+            const validatePickingResult = await callOdooMethod('stock.picking', 'action_done', [[pickingId]], {
+                context: {
+                    'skip_immediate': true, // Skip the "immediate transfer" wizard
+                    'skip_backorder': true  // Skip the "create backorder" wizard
+                }
+            });
 
             if (!validatePickingResult) {
                 console.error('Failed to validate picking in Odoo. Stock might not have been deducted.');
