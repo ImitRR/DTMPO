@@ -287,6 +287,7 @@ async function odooLogin() {
         apiStatusElement.textContent = 'API: Not Configured';
         apiStatusElement.classList.remove('connected');
         apiStatusElement.classList.add('disconnected');
+        stopStockPolling(); // Ensure polling is stopped if config is incomplete
         return false;
     }
 
@@ -338,6 +339,7 @@ async function callOdooMethod(model, method, args = [], kwargs = {}) {
         const loggedIn = await odooLogin();
         if (!loggedIn) {
             showCartNotification('Failed to connect to Odoo for data retrieval. Please check configuration.');
+            stopStockPolling(); // Stop polling if auto-login fails
             return null;
         }
     }
@@ -357,6 +359,8 @@ async function callOdooMethod(model, method, args = [], kwargs = {}) {
 
     if (result === null) {
         console.error(`Odoo API error for ${model}.${method} via proxy.`);
+        // If an Odoo API call fails (e.g., session expired), stop polling
+        stopStockPolling(); 
         return null;
     }
     return result;
@@ -395,9 +399,9 @@ async function fetchOdooProducts() {
             console.log('Products fetched from Odoo:', products);
         }
     } catch (error) {
-        console.error('Failed to fetch products from Odoo:', error);
+        console.error('Failed to fetch products from Odoo during polling:', error);
         // If fetching fails, the 'products' array retains its previous state (hardcoded data).
-        // No need to re-render here, as the initial render already happened with fallback data.
+        // The error handling in callOdooMethod will stop polling if it's a session issue.
     }
 }
 
@@ -408,13 +412,14 @@ function startStockPolling() {
     // Clear any existing interval to prevent multiple polls running
     if (stockPollingInterval) {
         clearInterval(stockPollingInterval);
+        console.log('Existing stock polling interval cleared.');
     }
     // Poll every 15 seconds (15000 milliseconds)
     stockPollingInterval = setInterval(() => {
         console.log('Polling Odoo for stock updates...');
         fetchOdooProducts();
     }, 15000); 
-    console.log('Stock polling started.');
+    console.log('Stock polling started with 15-second interval.');
 }
 
 /**
