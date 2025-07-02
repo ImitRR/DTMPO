@@ -910,6 +910,7 @@ async function placeOrder() {
 
             console.log('Attempting to validate picking using button_validate:', pickingId);
             // Now call button_validate directly with the necessary context.
+            // This is the most robust way to trigger validation programmatically.
             const validatePickingResult = await callOdooMethod('stock.picking', 'button_validate', [[pickingId]], {
                 context: {
                     'skip_immediate': true, // Skip the "immediate transfer" wizard
