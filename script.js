@@ -304,8 +304,8 @@ async function odooLogin() {
             apiStatusElement.classList.remove('disconnected');
             apiStatusElement.classList.add('connected');
             console.log('Odoo login successful. UID:', odooUid);
-            // After successful login, try to fetch products
-            await fetchOdooProducts(); // Call the new function to fetch products
+            // After successful login, try to fetch products immediately
+            await fetchOdooProducts(); 
             // Start polling for stock updates
             startStockPolling();
             return true;
@@ -377,6 +377,7 @@ async function fetchOdooProducts() {
     }
 
     try {
+        console.log('Fetching products from Odoo...'); // Added log for polling
         const productData = await callOdooMethod('product.template', 'search_read', [], {
             fields: ['name', 'list_price', 'standard_price', 'image_1920', 'qty_available'],
             limit: 20 // Limit to 20 products for example
@@ -396,11 +397,10 @@ async function fetchOdooProducts() {
                 initialStock: odooProduct.qty_available || 0 // Assuming initial stock is current stock
             }));
             displayProducts(); // Re-render products with fetched Odoo data
-            console.log('Products fetched from Odoo:', products);
+            console.log('Products fetched from Odoo and displayed.'); // Added log for polling success
         }
     } catch (error) {
         console.error('Failed to fetch products from Odoo during polling:', error);
-        // If fetching fails, the 'products' array retains its previous state (hardcoded data).
         // The error handling in callOdooMethod will stop polling if it's a session issue.
     }
 }
@@ -416,7 +416,7 @@ function startStockPolling() {
     }
     // Poll every 15 seconds (15000 milliseconds)
     stockPollingInterval = setInterval(() => {
-        console.log('Polling Odoo for stock updates...');
+        console.log('--- Polling Odoo for stock updates (every 15s) ---'); // Clearer log
         fetchOdooProducts();
     }, 15000); 
     console.log('Stock polling started with 15-second interval.');
