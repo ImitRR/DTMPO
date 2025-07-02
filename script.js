@@ -156,7 +156,7 @@ function loadOdooConfig() {
             const passwordInput = document.getElementById('odoo-password');
             if (passwordInput) {
                 passwordInput.value = odooConfig.password;
-                passwordPinput.setAttribute('autocomplete', 'current-password');
+                passwordInput.setAttribute('autocomplete', 'current-password');
             }
         }
         updateApiStatus();
@@ -901,28 +901,35 @@ async function placeOrder() {
             console.log('Fetching picking details to set quantities done...');
             const pickingDetails = await callOdooMethod('stock.picking', 'read', [pickingId], { fields: ['move_line_ids'] });
             
-            if (pickingDetails && pickingDetails.length > 0 && pickingDetails[0].move_line_ids.length > 0) {
+            if (pickingDetails && pickingDetails.length > 0 && pickingDetails[0].move_line_ids && pickingDetails[0].move_line_ids.length > 0) {
                 const moveLineIds = pickingDetails[0].move_line_ids;
                 
                 // Fetch details of each move line to get product_uom_qty
                 const moveLines = await callOdooMethod('stock.move.line', 'read', moveLineIds, { fields: ['product_id', 'product_uom_qty'] });
                 
-                // Prepare updates for each move line: set qty_done = product_uom_qty
-                const moveLineUpdates = moveLines.map(line => [1, line.id, { 'qty_done': line.product_uom_qty }]);
-                
-                console.log('Updating move lines with quantities done:', moveLineUpdates);
-                const updateMoveLinesResult = await callOdooMethod('stock.picking', 'write', [[pickingId], { 'move_line_ids': moveLineUpdates }]);
-                
-                if (!updateMoveLinesResult) {
-                    console.error('Failed to update move lines with quantities done.');
-                    showCartNotification('Order placed, but failed to set quantities for delivery. Check Odoo manually.');
-                    // Don't proceed to validate if setting quantities failed
-                    throw new Error('Failed to set quantities for delivery.');
+                if (moveLines) { // Check if moveLines is not null before mapping
+                    // Prepare updates for each move line: set qty_done = product_uom_qty
+                    const moveLineUpdates = moveLines.map(line => [1, line.id, { 'qty_done': line.product_uom_qty }]);
+                    
+                    console.log('Updating move lines with quantities done:', moveLineUpdates);
+                    const updateMoveLinesResult = await callOdooMethod('stock.picking', 'write', [[pickingId], { 'move_line_ids': moveLineUpdates }]);
+                    
+                    if (!updateMoveLinesResult) {
+                        console.error('Failed to update move lines with quantities done.');
+                        showCartNotification('Order placed, but failed to set quantities for delivery. Check Odoo manually.');
+                        // Don't proceed to validate if setting quantities failed
+                        throw new Error('Failed to set quantities for delivery.');
+                    }
+                    console.log('Move lines updated successfully.');
+                } else {
+                    console.error('Failed to read move lines. Cannot set quantities done.');
+                    showCartNotification('Order placed, but failed to read delivery details. Check Odoo manually.');
+                    throw new Error('Failed to read delivery move lines.');
                 }
-                console.log('Move lines updated successfully.');
             } else {
-                console.warn('No move lines found for picking:', pickingId, '. Cannot set quantities done.');
-                // Proceed, but this is a potential issue if the picking should have lines
+                console.warn('No move lines found for picking:', pickingId, '. Cannot set quantities done. This might be an Odoo configuration issue.');
+                showCartNotification('Order placed, but no delivery items found. Check Odoo configuration.');
+                // We will still attempt to validate, but it might fail if no lines are present.
             }
 
             console.log('Attempting to validate picking:', pickingId);
