@@ -107,6 +107,7 @@ let products = [
 ];
 
 let cart = []; // Array to store items in the cart
+let stockPollingInterval; // Variable to hold the polling interval ID
 
 // DOM Elements
 const productsContainer = document.getElementById('products-container');
@@ -304,6 +305,8 @@ async function odooLogin() {
             console.log('Odoo login successful. UID:', odooUid);
             // After successful login, try to fetch products
             await fetchOdooProducts(); // Call the new function to fetch products
+            // Start polling for stock updates
+            startStockPolling();
             return true;
         } else {
             throw new Error('Authentication failed: No user ID returned from proxy.');
@@ -314,6 +317,7 @@ async function odooLogin() {
         apiStatusElement.textContent = `API: Disconnected (${error.message})`;
         apiStatusElement.classList.remove('connected');
         apiStatusElement.classList.add('disconnected');
+        stopStockPolling(); // Stop polling if login fails
         return false;
     }
 }
@@ -364,8 +368,8 @@ async function callOdooMethod(model, method, args = [], kwargs = {}) {
  */
 async function fetchOdooProducts() {
     if (!odooUid) {
-        console.warn('Not logged in to Odoo. Cannot fetch products.');
-        return;
+        console.warn('Not logged in to Odoo. Cannot fetch products. Polling will continue to try after login.');
+        return; // Don't try to fetch if not logged in
     }
 
     try {
@@ -394,6 +398,33 @@ async function fetchOdooProducts() {
         console.error('Failed to fetch products from Odoo:', error);
         // If fetching fails, the 'products' array retains its previous state (hardcoded data).
         // No need to re-render here, as the initial render already happened with fallback data.
+    }
+}
+
+/**
+ * Starts the stock polling interval.
+ */
+function startStockPolling() {
+    // Clear any existing interval to prevent multiple polls running
+    if (stockPollingInterval) {
+        clearInterval(stockPollingInterval);
+    }
+    // Poll every 15 seconds (15000 milliseconds)
+    stockPollingInterval = setInterval(() => {
+        console.log('Polling Odoo for stock updates...');
+        fetchOdooProducts();
+    }, 15000); 
+    console.log('Stock polling started.');
+}
+
+/**
+ * Stops the stock polling interval.
+ */
+function stopStockPolling() {
+    if (stockPollingInterval) {
+        clearInterval(stockPollingInterval);
+        stockPollingInterval = null;
+        console.log('Stock polling stopped.');
     }
 }
 
@@ -858,6 +889,9 @@ async function placeOrder() {
 
             console.log('Attempting to validate picking:', pickingId);
             // Call action_done on the stock.picking to validate it and deduct stock
+            // Odoo's action_done method for pickings often requires a context,
+            // but for simple cases, it might work without. If it fails,
+            // we might need to investigate Odoo's specific requirements.
             const validatePickingResult = await callOdooMethod('stock.picking', 'action_done', [[pickingId]]);
 
             if (!validatePickingResult) {
@@ -868,7 +902,7 @@ async function placeOrder() {
                 showCartNotification('Order placed and stock deducted!');
             }
         } else {
-            console.warn('No picking found for sales order:', saleOrderId, '. Stock might not be deducted automatically.');
+            console.warn('No picking found for sales order:', saleOrderId, '. Stock might not be deducted automatically. This might indicate an Odoo configuration issue (e.g., no delivery route defined for products).');
             showCartNotification('Order placed, but no picking found to deduct stock. Check Odoo configuration.');
         }
         // --- END NEW STEP ---
