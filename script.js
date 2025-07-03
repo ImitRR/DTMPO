@@ -3,15 +3,22 @@
 let products = [
     {
         id: 1,
-        name: "Tropical Floral Maxi Dress",
-        price: 59.99,
-        originalPrice: 69.99,
-        image: "https://petalandpup.com.au/cdn/shop/files/0L6A2485.jpg?v=1733742092&width=240",
-        stock: 12,
-        initialStock: 12
+        name: "Bamboo Fiber Tank Top",
+        price: 29.99,
+        image: "https://bamboahome.com/cdn/shop/files/white_bamboo_womens_tank_top_1.png?v=1741327353",
+        stock: 20,
+        initialStock: 20
     },
     {
         id: 2,
+        name: "Crochet Beach Cover-Up Dress",
+        price: 45.99,
+        image: "https://www.bsubseach.com/cdn/shop/files/sheer-bikini-coverup-fringe-tassel-tops-for-beach-white-564623.jpg?v=1717811982",
+        stock: 8,
+        initialStock: 8
+    },
+    {
+        id: 3,
         name: "Hibiscus Print Hawaiian Shirt",
         price: 44.99,
         originalPrice: 49.99,
@@ -20,7 +27,16 @@ let products = [
         initialStock: 8
     },
     {
-        id: 3,
+        id: 4,
+        name: "Men's Linen Beach Pants",
+        price: 49.99,
+        originalPrice: 55.99,
+        image: "https://coofandy.com/cdn/shop/products/AP4A3026_ce070af4-d4df-42f1-97d3-a8f63b581b9a_1800x1800.jpg?v=1750742972",
+        stock: 14,
+        initialStock: 14
+    },
+    {
+        id: 5,
         name: "Palm Tree Beach Cover-Up",
         price: 39.99,
         image: "https://shop-confete.com/cdn/shop/products/WillaBeachCoverUp_750x1000_crop_center_7ac921f8-6cfd-4199-acc4-84596865ebf4.jpg?v=1646671194&width=5000",
@@ -28,30 +44,13 @@ let products = [
         initialStock: 15
     },
     {
-        id: 4,
+        id: 6,
         name: "Raffia Sun Hat with Bow",
         price: 34.99,
         originalPrice: 39.99,
         image: "https://i.etsystatic.com/23159430/r/il/fde051/4813819435/il_794xN.4813819435_exv5.jpg",
         stock: 10,
         initialStock: 10
-    },
-    {
-        id: 5,
-        name: "Bamboo Fiber Tank Top",
-        price: 29.99,
-        image: "https://bamboahome.com/cdn/shop/files/white_bamboo_womens_tank_top_1.png?v=1741327353",
-        stock: 20,
-        initialStock: 20
-    },
-    {
-        id: 6,
-        name: "Tie-Dye Beach Sarong",
-        price: 32.99,
-        originalPrice: 37.99,
-        image: "https://i.etsystatic.com/13139247/r/il/cd9bf9/1761765432/il_794xN.1761765432_gd2i.jpg",
-        stock: 18,
-        initialStock: 18
     },
     {
         id: 7,
@@ -64,14 +63,24 @@ let products = [
     },
     {
         id: 8,
-        name: "Woven Straw Beach Bag",
-        price: 39.99,
-        image: "https://elenahandbags.com/cdn/shop/products/130cmx33cm_800x.jpg?v=1651806740",
+        name: "Tie-Dye Beach Sarong",
+        price: 32.99,
+        originalPrice: 37.99,
+        image: "https://i.etsystatic.com/13139247/r/il/cd9bf9/1761765432/il_794xN.1761765432_gd2i.jpg",
+        stock: 18,
+        initialStock: 18
+    },
+    {
+        id: 9,
+        name: "Tropical Floral Maxi Dress",
+        price: 59.99,
+        originalPrice: 69.99,
+        image: "https://petalandpup.com.au/cdn/shop/files/0L6A2485.jpg?v=1733742092&width=240",
         stock: 12,
         initialStock: 12
     },
     {
-        id: 9,
+        id: 10,
         name: "Tropical Print Swim Shorts",
         price: 36.99,
         originalPrice: 42.99,
@@ -80,29 +89,20 @@ let products = [
         initialStock: 10
     },
     {
-        id: 10,
-        name: "Crochet Beach Cover-Up Dress",
-        price: 45.99,
-        image: "https://www.bsubseach.com/cdn/shop/files/sheer-bikini-coverup-fringe-tassel-tops-for-beach-white-564623.jpg?v=1717811982",
-        stock: 8,
-        initialStock: 8
-    },
-    {
         id: 11,
-        name: "Men's Linen Beach Pants",
-        price: 49.99,
-        originalPrice: 55.99,
-        image: "https://coofandy.com/cdn/shop/products/AP4A3026_ce070af4-d4df-42f1-97d3-a8f63b581b9a_1800x1800.jpg?v=1750742972",
-        stock: 14,
-        initialStock: 14
-    },
-    {
-        id: 12,
         name: "Women's Strappy Sandals",
         price: 38.99,
         image: "https://d1q03ajwgi7cv2.cloudfront.net/media/catalog/product/cache/81d16df11efc363de1f31fe51afcad0e/d/u/duu-luci-0079506840086487_front.jpg",
         stock: 25,
         initialStock: 25
+    },
+    {
+        id: 12,
+        name: "Woven Straw Beach Bag",
+        price: 39.99,
+        image: "https://elenahandbags.com/cdn/shop/products/130cmx33cm_800x.jpg?v=1651806740",
+        stock: 12,
+        initialStock: 12
     }
 ];
 
