@@ -123,7 +123,7 @@ const notificationContainer = document.getElementById('notification-container');
 
 // Configuration for Glitch Proxy
 const config = {
-  proxyUrl: 'https://lead-awake-rhythm.glitch.me', // <--- Your Glitch Proxy URL (NO trailing slash)
+  proxyUrl: 'https://replit.com/@rahulrahamat/odoo-proxy', // <--- Your Glitch Proxy URL (NO trailing slash)
   apiKey: 's0m3R4nd0mStR1ngF0rMyPr0xyS3cur1ty_xyz123' // <--- Your API Key (must match Glitch .env)
 };
 
