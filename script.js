@@ -343,7 +343,7 @@ async function callOdooMethod(model, method, args = [], kwargs = {}) {
         console.warn('Not logged in to Odoo. Attempting to log in automatically before calling Odoo method...');
         const loggedIn = await odooLogin();
         if (!loggedIn) {
-            showCartNotification('Failed to connect to Odoo for data retrieval. Please check configuration.');
+            showNotification('Failed to connect to Odoo for data retrieval. Please check configuration.');
             // Polling will be stopped by odooLogin if it fails
             return null;
         }
@@ -355,7 +355,7 @@ async function callOdooMethod(model, method, args = [], kwargs = {}) {
         uid: odooUid,
         model: model,   // Direct 'model' parameter for Odoo's call_kw
         method: method, // Direct 'method' parameter for Odoo's call_kw
-        args: args,     // Positional arguments for the Odoo method
+        args: args,     // Positional arguments (e.g., domain)
         kwargs: kwargs  // Keyword arguments for the Odoo method
     };
 
@@ -482,7 +482,7 @@ function addToCart(e) {
     const product = products.find(p => p.id === productId);
 
     if (!product || product.stock <= 0) {
-        showCartNotification(`Sorry, ${product.name} is out of stock.`);
+        showNotification(`Sorry, ${product.name} is out of stock.`);
         return;
     }
 
@@ -504,7 +504,7 @@ function addToCart(e) {
     product.stock -= 1;
     updateCart();
     displayProducts(); // Refresh product display
-    showCartNotification(`${product.name} added to cart!`);
+    showNotification(`${product.name} added to cart!`);
 }
 
 // Update cart UI and totals
@@ -601,7 +601,7 @@ function increaseQuantity(e) {
         updateCart();
         displayProducts(); // Refresh product display
     } else if (product && product.stock <= 0) {
-        showCartNotification(`Cannot add more of ${product.name}, out of stock.`);
+        showNotification(`Cannot add more of ${product.name}, out of stock.`);
     }
 }
 
@@ -616,14 +616,14 @@ function removeItem(e) {
         cart = cart.filter(i => i.id !== productId);
         updateCart();
         displayProducts(); // Refresh product display
-        showCartNotification(`${item.name} removed from cart!`);
+        showNotification(`${item.name} removed from cart!`);
     }
 }
 
 // Show checkout window
 function showCheckout() {
     if (cart.length === 0) {
-        showCartNotification('Your cart is empty!'); // Changed from alert to notification
+        showNotification('Your cart is empty!');
         return;
     }
 
@@ -787,7 +787,7 @@ async function placeOrder() {
         const cardCvc = document.getElementById('card-cvc') ? document.getElementById('card-cvc').value : '';
 
         if (!cardType) {
-            showCartNotification('Please select a card type');
+            showNotification('Please select a card type');
             return;
         }
 
@@ -795,18 +795,18 @@ async function placeOrder() {
                               (cardType !== 'amex' && cardNumber.length === 16);
 
         if (!cardLengthValid || !/^\d+$/.test(cardNumber)) {
-            showCartNotification('Please enter a valid card number');
+            showNotification('Please enter a valid card number');
             return;
         }
 
         if (!/^\d{2}\/\d{2}$/.test(cardExpiry)) {
-            showCartNotification('Please enter expiry date in MM/YY format');
+            showNotification('Please enter expiry date in MM/YY format');
             return;
         }
 
         const cvcLength = cardType === 'amex' ? 4 : 3;
         if (!new RegExp(`^\\d{${cvcLength}}$`).test(cardCvc)) {
-            showCartNotification(`Please enter a valid ${cvcLength}-digit CVC`);
+            showNotification(`Please enter a valid ${cvcLength}-digit CVC`);
             return;
         }
 
@@ -822,160 +822,190 @@ async function placeOrder() {
         };
     }
 
-    showCartNotification('Processing your order...');
+    showNotification('Processing your order...');
 
-    try {
-        // 1. Find or Create Customer (res.partner)
-        let customerId;
-        console.log('Attempting to find or create customer in Odoo...');
-        const existingPartners = await callOdooMethod('res.partner', 'search_read', [[['email', '=', email]]], { fields: ['id'] });
-        
-        if (existingPartners && existingPartners.length > 0) {
-            customerId = existingPartners[0].id;
-            console.log('Found existing customer in Odoo. ID:', customerId);
-        } else {
-            console.log('Customer not found, creating new one...');
-            const newPartner = await callOdooMethod('res.partner', 'create', [{
-                name: name,
-                email: email,
-                street: address,
-                customer_rank: 1 // Mark as a customer
-            }]);
-            if (newPartner) {
-                customerId = newPartner; // Odoo create returns the ID of the new record
-                console.log('Created new customer in Odoo. ID:', customerId);
+    const isOdooConnected = !!odooUid; // Check if odooUid exists (implies successful login)
+    const apiStatusElement = document.getElementById('api-status');
+    const isOdooConfigured = odooConfig.url && odooConfig.db && odooConfig.username && odooConfig.password;
+
+    let odooInteractionSuccessful = false;
+    let saleOrderId = 'N/A'; // Default to N/A if Odoo interaction is skipped or fails
+    let odooMessage = '';
+
+    if (isOdooConnected && isOdooConfigured) {
+        // --- Odoo Connected Path ---
+        try {
+            // 1. Find or Create Customer (res.partner)
+            let customerId;
+            console.log('Attempting to find or create customer in Odoo...');
+            const existingPartners = await callOdooMethod('res.partner', 'search_read', [[['email', '=', email]]], { fields: ['id'] });
+            
+            if (existingPartners && existingPartners.length > 0) {
+                customerId = existingPartners[0].id;
+                console.log('Found existing customer in Odoo. ID:', customerId);
             } else {
-                throw new Error('Failed to create customer in Odoo.');
-            }
-        }
-
-        if (!customerId) {
-            throw new Error('Customer ID could not be determined for Odoo order.');
-        }
-
-        // 2. Create Sales Order (sale.order)
-        console.log('Attempting to create sales order in Odoo...');
-        // Odoo uses special commands for many-to-many or one-to-many relationships.
-        // [0, 0, {values}] creates a new record and links it.
-        const orderLines = cart.map(item => [0, 0, {
-            product_id: item.id, // This is the Odoo product ID
-            product_uom_qty: item.quantity,
-            price_unit: item.price,
-        }]);
-
-        const saleOrderData = {
-            partner_id: customerId,
-            order_line: orderLines,
-            // You can add more fields if needed, e.g., 'payment_term_id', 'client_order_ref'
-        };
-
-        const saleOrderId = await callOdooMethod('sale.order', 'create', [saleOrderData]);
-
-        if (!saleOrderId) {
-            throw new Error('Failed to create sales order in Odoo.');
-        }
-        console.log('Created Sales Order in Odoo. ID:', saleOrderId);
-
-        // 3. Confirm Sales Order to trigger stock movements
-        console.log('Attempting to confirm sales order in Odoo...');
-        const confirmResult = await callOdooMethod('sale.order', 'action_confirm', [[saleOrderId]]);
-
-        if (!confirmResult) {
-            console.warn('Failed to confirm sales order in Odoo. Stock might not be deducted automatically. Check Odoo logs/configuration.');
-            // Continue, but warn the user or log this for admin review
-        } else {
-            console.log('Sales Order confirmed in Odoo. Result:', confirmResult);
-        }
-
-        // --- NEW STEP: Find and Validate the Picking (Delivery Order) ---
-        console.log('Attempting to find associated picking for sales order:', saleOrderId);
-        // Fetch the sales order details to get its picking_ids
-        const salesOrderDetails = await callOdooMethod('sale.order', 'read', [saleOrderId], { fields: ['picking_ids'] });
-        
-        let pickingId = null;
-        if (salesOrderDetails && salesOrderDetails.length > 0 && salesOrderDetails[0].picking_ids && salesOrderDetails[0].picking_ids.length > 0) {
-            pickingId = salesOrderDetails[0].picking_ids[0]; // Get the first picking ID
-            console.log('Found picking ID:', pickingId, 'for Sales Order:', saleOrderId);
-
-            // --- REVISED: Try action_assign first, then button_validate with context ---
-            console.log('Attempting to assign quantities to picking:', pickingId);
-            const assignResult = await callOdooMethod('stock.picking', 'action_assign', [[pickingId]]);
-
-            if (!assignResult) {
-                console.warn('Failed to assign quantities for picking. Proceeding to validate anyway, but stock might not deduct.');
-                showCartNotification('Order placed, but failed to reserve stock. Check Odoo manually.');
-            } else {
-                console.log('Quantities assigned successfully. Result:', assignResult);
-            }
-
-            console.log('Attempting to validate picking using button_validate:', pickingId);
-            // Now call button_validate directly with the necessary context.
-            // This is the most robust way to trigger validation programmatically.
-            const validatePickingResult = await callOdooMethod('stock.picking', 'button_validate', [[pickingId]], {
-                context: {
-                    'skip_immediate': true, // Skip the "immediate transfer" wizard
-                    'skip_backorder': true  // Skip the "create backorder" wizard
+                console.log('Customer not found, creating new one...');
+                const newPartner = await callOdooMethod('res.partner', 'create', [{
+                    name: name,
+                    email: email,
+                    street: address,
+                    customer_rank: 1 // Mark as a customer
+                }]);
+                if (newPartner) {
+                    customerId = newPartner; // Odoo create returns the ID of the new record
+                    console.log('Created new customer in Odoo. ID:', customerId);
+                } else {
+                    throw new Error('Failed to create customer in Odoo.');
                 }
-            });
-
-            if (!validatePickingResult) {
-                console.error('Failed to validate picking in Odoo. Stock might not have been deducted.');
-                showCartNotification('Order placed, but failed to deduct stock in Odoo. Please check Odoo manually.');
-            } else {
-                console.log('Picking validated successfully. Result:', validatePickingResult);
-                showCartNotification('Order placed and stock deducted!');
             }
+
+            if (!customerId) {
+                throw new Error('Customer ID could not be determined for Odoo order.');
+            }
+
+            // 2. Create Sales Order (sale.order)
+            console.log('Attempting to create sales order in Odoo...');
+            const orderLines = cart.map(item => [0, 0, {
+                product_id: item.id, // This is the Odoo product ID
+                product_uom_qty: item.quantity,
+                price_unit: item.price,
+            }]);
+
+            const saleOrderData = {
+                partner_id: customerId,
+                order_line: orderLines,
+            };
+
+            saleOrderId = await callOdooMethod('sale.order', 'create', [saleOrderData]);
+
+            if (!saleOrderId) {
+                throw new Error('Failed to create sales order in Odoo.');
+            }
+            console.log('Created Sales Order in Odoo. ID:', saleOrderId);
+
+            // 3. Confirm Sales Order to trigger stock movements
+            console.log('Attempting to confirm sales order in Odoo...');
+            const confirmResult = await callOdooMethod('sale.order', 'action_confirm', [[saleOrderId]]);
+
+            if (!confirmResult) {
+                console.warn('Failed to confirm sales order in Odoo. Stock might not be deducted automatically. Check Odoo logs/configuration.');
+                showNotification('Order placed, but failed to confirm in Odoo. Check Odoo manually.');
+            } else {
+                console.log('Sales Order confirmed in Odoo. Result:', confirmResult);
+            }
+
+            // --- NEW STEP: Find and Validate the Picking (Delivery Order) ---
+            console.log('Attempting to find associated picking for sales order:', saleOrderId);
+            const salesOrderDetails = await callOdooMethod('sale.order', 'read', [saleOrderId], { fields: ['picking_ids'] });
+            
+            let pickingId = null;
+            if (salesOrderDetails && salesOrderDetails.length > 0 && salesOrderDetails[0].picking_ids && salesOrderDetails[0].picking_ids.length > 0) {
+                pickingId = salesOrderDetails[0].picking_ids[0]; // Get the first picking ID
+                console.log('Found picking ID:', pickingId, 'for Sales Order:', saleOrderId);
+
+                console.log('Attempting to assign quantities to picking:', pickingId);
+                const assignResult = await callOdooMethod('stock.picking', 'action_assign', [[pickingId]]);
+
+                if (!assignResult) {
+                    console.warn('Failed to assign quantities for picking. Proceeding to validate anyway, but stock might not deduct.');
+                    showNotification('Order placed, but failed to reserve stock. Check Odoo manually.');
+                } else {
+                    console.log('Quantities assigned successfully. Result:', assignResult);
+                }
+
+                console.log('Attempting to validate picking using button_validate:', pickingId);
+                const validatePickingResult = await callOdooMethod('stock.picking', 'button_validate', [[pickingId]], {
+                    context: {
+                        'skip_immediate': true, // Skip the "immediate transfer" wizard
+                        'skip_backorder': true  // Skip the "create backorder" wizard
+                    }
+                });
+
+                if (!validatePickingResult) {
+                    console.error('Failed to validate picking in Odoo. Stock might not have been deducted.');
+                    showNotification('Order placed, but failed to deduct stock in Odoo. Please check Odoo manually.');
+                } else {
+                    console.log('Picking validated successfully. Result:', validatePickingResult);
+                    odooInteractionSuccessful = true; // Mark Odoo interaction as successful
+                }
+            } else {
+                console.warn('No picking found for sales order:', saleOrderId, '. Stock might not be deducted automatically. This might indicate an Odoo configuration issue (e.g., no delivery route defined for products).');
+                showNotification('Order placed, but no picking found to deduct stock. Check Odoo configuration.');
+            }
+            // --- END NEW STEP ---
+
+            console.log('Order process completed: Success path with Odoo interaction.');
+            odooMessage = `<p>Odoo Sales Order ID: <strong>${saleOrderId}</strong></p>`;
+
+        } catch (odooError) {
+            console.error('Error during Odoo order processing:', odooError);
+            showNotification(`Odoo connection active, but failed to process order: ${odooError.message || 'An unexpected Odoo error occurred.'}`);
+            apiStatusElement.textContent = `API: Connected (Order Error)`;
+            apiStatusElement.classList.add('disconnected'); // Show as disconnected due to order error
+            odooInteractionSuccessful = false; // Ensure this is false if Odoo part failed
+            odooMessage = `<p class="warning-message">Odoo connection active, but order processing failed. Stock not deducted from Odoo. Please check Odoo manually.</p>`;
+        }
+    } else {
+        // --- Odoo NOT Connected Path ---
+        console.warn('Odoo is not connected or configured. Proceeding with local checkout only. Stock will not be deducted from Odoo.');
+        showNotification('Odoo not connected. Order placed locally. Stock not deducted from Odoo.');
+        apiStatusElement.textContent = 'API: Not Connected (Local Checkout)';
+        apiStatusElement.classList.remove('connected');
+        apiStatusElement.classList.add('disconnected');
+        odooInteractionSuccessful = false; // Explicitly set to false
+        if (!isOdooConfigured) {
+            odooMessage = `<p class="warning-message">Odoo not configured. Order placed locally, stock not deducted from Odoo.</p>`;
         } else {
-            console.warn('No picking found for sales order:', saleOrderId, '. Stock might not be deducted automatically. This might indicate an Odoo configuration issue (e.g., no delivery route defined for products).');
-            showCartNotification('Order placed, but no picking found to deduct stock. Check Odoo configuration.');
+            odooMessage = `<p class="warning-message">Odoo connection failed. Order placed locally, stock not deducted from Odoo.</p>`;
         }
-        // --- END NEW STEP ---
+    }
 
-        console.log('Order process completed: Success path.'); // Log for success path
-        // Show confirmation only if the entire try block completes without throwing
-        checkoutModal.style.display = 'none';
-        document.getElementById('order-confirmation-modal').style.display = 'flex';
+    // --- Common Checkout Confirmation Path ---
+    // This part runs regardless of Odoo connection status and Odoo interaction success,
+    // as long as local form validation passes.
 
-        const orderDetailsElement = document.getElementById('order-details');
-        if (orderDetailsElement) {
-            orderDetailsElement.innerHTML = `
-                <i class="fas fa-check-circle success-icon"></i>
-                <h3>Order Confirmed!</h3>
-                <p>Thank you for your purchase, ${name}.</p>
-                <p>A confirmation has been sent to ${email}.</p>
-                <p>Odoo Sales Order ID: <strong>${saleOrderId}</strong></p>
-                <button class="btn" id="return-to-shop-btn">Return to Shop</button>
-            `;
-        }
+    // Show confirmation modal
+    checkoutModal.style.display = 'none';
+    document.getElementById('order-confirmation-modal').style.display = 'flex';
 
-        const returnToShopBtn = document.getElementById('return-to-shop-btn');
-        if (returnToShopBtn) {
-            returnToShopBtn.addEventListener('click', () => {
-                // Reset cart
-                cart = [];
-                updateCart();
-                document.getElementById('order-confirmation-modal').style.display = 'none';
+    const orderDetailsElement = document.getElementById('order-details');
+    if (orderDetailsElement) {
+        orderDetailsElement.innerHTML = `
+            <i class="fas fa-check-circle success-icon"></i>
+            <h3>Order Confirmed!</h3>
+            <p>Thank you for your purchase, ${name}.</p>
+            <p>A confirmation has been sent to ${email}.</p>
+            ${odooMessage}
+            <button class="btn" id="return-to-shop-btn">Return to Shop</button>
+        `;
+    }
 
-                // IMPORTANT: Re-fetch products from Odoo to get updated stock levels
-                // Removed: products.forEach(p => p.stock = p.initialStock); // THIS LINE IS REMOVED
-                // Add a small delay to allow Odoo to fully process stock deduction
+    const returnToShopBtn = document.getElementById('return-to-shop-btn');
+    if (returnToShopBtn) {
+        returnToShopBtn.addEventListener('click', () => {
+            // Reset cart
+            cart = [];
+            updateCart();
+            document.getElementById('order-confirmation-modal').style.display = 'none';
+
+            // If Odoo was connected and its interaction was successful, re-fetch products.
+            // Otherwise, reset to initial hardcoded stock.
+            if (isOdooConnected && odooInteractionSuccessful) {
                 setTimeout(() => {
                     console.log('Re-fetching products after order to update stock display...');
-                    fetchOdooProducts(); 
+                    fetchOdooProducts();
                 }, 2000); // Increased delay to 2 seconds for more safety
-            });
-        }
-
-    } catch (error) {
-        console.error('Error placing order with Odoo:', error);
-        showCartNotification(`Failed to place order: ${error.message || 'An unexpected error occurred.'}`);
-        // Keep checkout modal open or show an error message there
-        checkoutModal.style.display = 'flex'; // Keep it open on error
-    } finally {
-        // Ensure polling restarts even if the order placement had an error
-        console.log('Order process finished. Ensuring stock polling is active.');
-        startStockPolling(); 
+            } else {
+                // Reset products to initial hardcoded stock if Odoo was not involved or failed
+                products.forEach(p => p.stock = p.initialStock);
+                displayProducts();
+            }
+        });
     }
+
+    // Ensure polling restarts even if the order placement had an error
+    console.log('Order process finished. Ensuring stock polling is active.');
+    startStockPolling(); 
 }
 
 // Calculate cart total
@@ -983,20 +1013,20 @@ function calculateCartTotal() {
     return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
 }
 
-// Show cart notification
-function showCartNotification(message) {
+// Show cart notification (renamed from showCartNotification to be consistent with showNotification)
+function showNotification(message) {
     const notification = document.createElement('div');
     notification.className = 'cart-notification';
     notification.textContent = message;
-    document.body.appendChild(notification);
+    notificationContainer.appendChild(notification); // Append to notificationContainer
 
+    // Changed delay to 5000 milliseconds (5 seconds)
     setTimeout(() => {
         notification.classList.add('fade-out');
-        setTimeout(() => {
-            notification.remove();
-        }, 300);
-    }, 2000);
+        notification.addEventListener('transitionend', () => notification.remove());
+    }, 5000); // Display for 5 seconds
 }
+
 
 // Initialize the app
 function init() {
