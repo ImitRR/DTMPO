@@ -968,6 +968,10 @@ async function placeOrder() {
     checkoutModal.style.display = 'none';
     document.getElementById('order-confirmation-modal').style.display = 'flex';
 
+    // Clear cart immediately after order is placed and confirmation modal is shown
+    cart = [];
+    updateCart(); // Update cart display to reflect empty cart
+
     const orderDetailsElement = document.getElementById('order-details');
     if (orderDetailsElement) {
         orderDetailsElement.innerHTML = `
@@ -983,9 +987,6 @@ async function placeOrder() {
     const returnToShopBtn = document.getElementById('return-to-shop-btn');
     if (returnToShopBtn) {
         returnToShopBtn.addEventListener('click', () => {
-            // Reset cart
-            cart = [];
-            updateCart();
             document.getElementById('order-confirmation-modal').style.display = 'none';
 
             // If Odoo was connected and its interaction was successful, re-fetch products.
@@ -1043,7 +1044,26 @@ function init() {
     closeModalButtons.forEach(btn => {
         btn.addEventListener('click', function() {
             const modal = this.closest('.modal');
-            if (modal) modal.style.display = 'none';
+            if (modal) {
+                modal.style.display = 'none';
+                // If closing the order confirmation modal, ensure cart is cleared
+                if (modal.id === 'order-confirmation-modal') {
+                    cart = [];
+                    updateCart();
+                    // Also refresh products based on Odoo connection status
+                    const isOdooConnected = !!odooUid;
+                    const odooInteractionSuccessful = true; // Assume success if manually closing after confirmation
+                    if (isOdooConnected && odooInteractionSuccessful) {
+                        setTimeout(() => {
+                            console.log('Re-fetching products after order to update stock display...');
+                            fetchOdooProducts();
+                        }, 2000);
+                    } else {
+                        products.forEach(p => p.stock = p.initialStock);
+                        displayProducts();
+                    }
+                }
+            }
         });
     });
 
@@ -1051,6 +1071,22 @@ function init() {
     window.addEventListener('click', (e) => {
         if (e.target.classList.contains('modal')) {
             e.target.style.display = 'none';
+            // If closing the order confirmation modal by clicking outside, ensure cart is cleared
+            if (e.target.id === 'order-confirmation-modal') {
+                cart = [];
+                updateCart();
+                 const isOdooConnected = !!odooUid;
+                 const odooInteractionSuccessful = true; // Assume success if manually closing after confirmation
+                 if (isOdooConnected && odooInteractionSuccessful) {
+                     setTimeout(() => {
+                         console.log('Re-fetching products after order to update stock display...');
+                         fetchOdooProducts();
+                     }, 2000);
+                 } else {
+                     products.forEach(p => p.stock = p.initialStock);
+                     displayProducts();
+                 }
+            }
         }
     });
 
