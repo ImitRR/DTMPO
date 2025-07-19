@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tropical Trend Wear - Fashion for Every Adventure</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+</head>
+<body>
+    <header>
+        <div class="top-bar">
+            Free shipping on orders over $50 | Use code TROPICAL20 for 20% off
+        </div>
+        <nav class="navbar">
+            <a href="#" class="logo">Tropical <span>Trend</span> Wear</a>
+            <ul class="nav-links">
+                <li><a href="#">Home</a></li>
+                <li><a href="#">Shop</a></li>
+                <li><a href="#">Collections</a></li>
+                <li><a href="#">About</a></li>
+                <li><a href="#">Contact</a></li>
+            </ul>
+            <div class="icons">
+                <a href="#"><i class="fas fa-search"></i></a>
+                <a href="#" id="track-order-link"><i class="fas fa-truck"></i> Track Order</a>
+                <a href="#" id="product-admin-toggle" style="display: none;"><i class="fas fa-box"></i> Products</a> <!-- Hidden by default -->
+                <a href="#"><i class="fas fa-user"></i></a>
+                <a href="#" id="cart-icon">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span class="cart-count">0</span>
+                </a>
+                <a href="#" id="admin-toggle" title="Odoo API Admin Panel"><i class="fas fa-cog"></i></a>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="hero-content">
+                <h1>Discover Your Perfect Summer Style</h1>
+                <p>Sustainable fashion for every adventurous spirit.</p>
+                <div class="hero-buttons">
+                    <button class="btn" id="shop-now">Shop Now</button>
+                    <button class="btn btn-secondary" id="view-lookbook">View Lookbook</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="products">
+            <h2>Our Products</h2>
+            <div id="products-container" class="products-grid">
+                <!-- Product cards will be loaded here by JavaScript -->
+            </div>
+        </section>
+
+        <section class="about">
+            <h2>About Tropical Trend Wear</h2>
+            <p>At Tropical Trend Wear, we believe in fashion that is both stylish and sustainable. Our collections are inspired by the vibrant colors and relaxed atmosphere of tropical destinations, crafted with respect for people and the planet. We use eco-friendly materials and fair production practices to create clothing that makes you feel good, inside and out.</p>
+            <p>Whether you're lounging on the beach, visiting a sunny terrace, or simply enjoying summer days, our clothing is designed to offer comfort and elegance. Join the Tropical Trend Wear family and contribute to a more sustainable future, one stylish outfit at a time.</p>
+        </section>
+    </main>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section about-us">
+                <h3>About Us</h3>
+                <p>Tropical Trend Wear offers sustainable, stylish clothing inspired by the tropics. Fashion with a conscience.</p>
+            </div>
+            <div class="footer-section links">
+                <h3>Quick Links</h3>
+                <ul>
+                    <li><a href="#">Home</a></li>
+                    <li><a href="#">Shop</a></li>
+                    <li><a href="#">Collections</a></li>
+                    <li><a href="#">Privacy Policy</a></li>
+                    <li><a href="#">Terms & Conditions</a></li>
+                </ul>
+            </div>
+            <div class="footer-section contact">
+                <h3>Contact</h3>
+                <p><i class="fas fa-map-marker-alt"></i> 123 Tropical Avenue, Sun City, Country</p>
+                <p><i class="fas fa-phone"></i> +123 456 7890</p>
+                <p><i class="fas fa-envelope"></i> info@tropicaltrendwear.com</p>
+            </div>
+            <div class="footer-section social">
+                <h3>Follow Us</h3>
+                <a href="#"><i class="fab fa-facebook-f"></i></a>
+                <a href="#"><i class="fab fa-twitter"></i></a>
+                <a href="#"><i class="fab fa-instagram"></i></a>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            &copy; 2024 Tropical Trend Wear. All rights reserved.
+        </div>
+    </footer>
+
+    <!-- Cart Modal -->
+    <div id="cart-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h3>Your Cart</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Price</th>
+                        <th>Quantity</th>
+                        <th>Total</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="cart-items">
+                    <!-- Cart items will be loaded here by JavaScript -->
+                </tbody>
+            </table>
+            <div class="cart-summary">
+                <p>Total: <span id="cart-total">$0.00</span></p>
+                <button class="btn" id="checkout-btn">Checkout</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Checkout Modal -->
+    <div id="checkout-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <div id="checkout-container">
+                <!-- Checkout form will be loaded here by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Confirmation Modal -->
+    <div id="order-confirmation-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <div id="order-details" class="order-confirmation">
+                <!-- Order details will be loaded here by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Odoo API Admin Panel Modal -->
+    <div id="admin-panel-modal" class="modal admin-modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h3>Admin Panel - Odoo API Configuration</h3>
+            <form class="admin-form" id="api-config-form">
+                <div class="form-group">
+                    <label for="odoo-url">Odoo URL</label>
+                    <input type="url" id="odoo-url" required placeholder="https://your-odoo-instance.com">
+                </div>
+                <div class="form-group">
+                    <label for="odoo-db">Database Name</label>
+                    <input type="text" id="odoo-db" required placeholder="your-database-name">
+                </div>
+                <div class="form-group">
+                    <label for="odoo-username">Username</label>
+                    <input type="text" id="odoo-username" required placeholder="api-username">
+                </div>
+                <div class="form-group">
+                    <label for="odoo-password">Password</label>
+                    <input type="password" id="odoo-password" required placeholder="••••••••">
+                </div>
+                <button type="submit">Save Configuration</button>
+                <div class="config-saved" id="config-saved">Configuration saved!</div>
+            </form>
+            <p class="api-status" id="api-status">API Status: Not Configured</p>
+        </div>
+    </div>
+
+    <!-- Product Admin Panel Modal -->
+    <div id="product-admin-modal" class="modal admin-modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h3>Admin Panel - Product Management</h3>
+            <!-- Product Admin Login Section -->
+            <div id="product-admin-login-section">
+                <h4>Login for Product Management</h4>
+                <form class="admin-form" id="product-admin-login-form">
+                    <div class="form-group">
+                        <label for="product-admin-username">Username</label>
+                        <input type="text" id="product-admin-username" required placeholder="privileged-username">
+                    </div>
+                    <div class="form-group">
+                        <label for="product-admin-password">Password</label>
+                        <input type="password" id="product-admin-password" required placeholder="••••••••">
+                    </div>
+                    <button type="submit">Login</button>
+                </form>
+                <div class="product-admin-login-status" id="product-admin-login-status"></div>
+            </div>
+
+            <!-- Product Add Form Section (hidden until login) -->
+            <div id="product-add-form-section" style="display: none;">
+                <h4>Add New Product</h4>
+                <form class="admin-form" id="product-add-form">
+                    <div class="form-group">
+                        <label for="product-name">Product Name</label>
+                        <input type="text" id="product-name" required placeholder="e.g., Summer Beach Towel">
+                    </div>
+                    <div class="form-group">
+                        <label for="product-price">Price</label>
+                        <input type="number" id="product-price" step="0.01" required placeholder="e.g., 25.99">
+                    </div>
+                    <div class="form-group">
+                        <label for="product-image-url">Image URL</label>
+                        <input type="url" id="product-image-url" placeholder="https://example.com/image.jpg">
+                    </div>
+                    <div class="form-group">
+                        <label for="product-stock">Initial Stock</label>
+                        <input type="number" id="product-stock" required value="0" min="0">
+                    </div>
+                    <button type="submit">Add Product to Odoo</button>
+                </form>
+                <div class="product-add-status" id="product-add-status"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Tracking Modal -->
+    <div id="order-tracking-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h3>Track Your Order</h3>
+            <form id="order-tracking-form">
+                <div class="form-group">
+                    <label for="track-order-number">Order Number</label>
+                    <input type="text" id="track-order-number" placeholder="e.g., S00013" required>
+                </div>
+                <div class="form-group">
+                    <label for="track-email">Email Address</label>
+                    <input type="email" id="track-email" placeholder="your@email.com" required>
+                </div>
+                <button type="submit" class="btn">Track Order</button>
+            </form>
+            <div id="order-tracking-results" class="order-tracking-results">
+                <!-- Results will be displayed here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notification-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/monthSelectPlugin.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
