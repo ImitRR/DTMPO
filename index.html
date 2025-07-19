@@ -173,6 +173,80 @@
             <p class="api-status" id="api-status">API Status: Not Configured</p>
         </div>
     </div>
+	<!-- Product Admin Panel Modal -->
+    <div id="product-admin-modal" class="modal admin-modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h3>Admin Panel - Product Management</h3>
+            <!-- Product Admin Login Section -->
+            <div id="product-admin-login-section">
+                <h4>Login for Product Management</h4>
+                <form class="admin-form" id="product-admin-login-form">
+                    <div class="form-group">
+                        <label for="product-admin-username">Username</label>
+                        <input type="text" id="product-admin-username" required placeholder="privileged-username">
+                    </div>
+                    <div class="form-group">
+                        <label for="product-admin-password">Password</label>
+                        <input type="password" id="product-admin-password" required placeholder="••••••••">
+                    </div>
+                    <button type="submit">Login</button>
+                </form>
+                <div class="product-admin-login-status" id="product-admin-login-status"></div>
+            </div>
+
+            <!-- Product Add Form Section (hidden until login) -->
+            <div id="product-add-form-section" style="display: none;">
+                <h4>Add New Product</h4>
+                <form class="admin-form" id="product-add-form">
+                    <div class="form-group">
+                        <label for="product-name">Product Name</label>
+                        <input type="text" id="product-name" required placeholder="e.g., Summer Beach Towel">
+                    </div>
+                    <div class="form-group">
+                        <label for="product-price">Price</label>
+                        <input type="number" id="product-price" step="0.01" required placeholder="e.g., 25.99">
+                    </div>
+                    <div class="form-group">
+                        <label for="product-image-url">Image URL</label>
+                        <input type="url" id="product-image-url" placeholder="https://example.com/image.jpg">
+                    </div>
+                    <div class="form-group">
+                        <label for="product-stock">Initial Stock</label>
+                        <input type="number" id="product-stock" required value="0" min="0">
+                    </div>
+                    <button type="submit">Add Product to Odoo</button>
+                </form>
+                <div class="product-add-status" id="product-add-status"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Tracking Modal -->
+    <div id="order-tracking-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h3>Track Your Order</h3>
+            <form id="order-tracking-form">
+                <div class="form-group">
+                    <label for="track-order-number">Order Number</label>
+                    <input type="text" id="track-order-number" placeholder="e.g., S00013" required>
+                </div>
+                <div class="form-group">
+                    <label for="track-email">Email Address</label>
+                    <input type="email" id="track-email" placeholder="your@email.com" required>
+                </div>
+                <button type="submit" class="btn">Track Order</button>
+            </form>
+            <div id="order-tracking-results" class="order-tracking-results">
+                <!-- Results will be displayed here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notification-container"></div>
+
 
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/monthSelectPlugin.js"></script>
