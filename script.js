@@ -120,8 +120,19 @@ const checkoutModal = document.getElementById('checkout-modal');
 const checkoutContainer = document.getElementById('checkout-container');
 const closeModalButtons = document.querySelectorAll('.close-modal');
 const notificationContainer = document.getElementById('notification-container');
+const orderTrackingModal = document.getElementById('order-tracking-modal'); // New: Order Tracking Modal
+const orderTrackingForm = document.getElementById('order-tracking-form');     // New: Order Tracking Form
+const orderTrackingResults = document.getElementById('order-tracking-results'); // New: Order Tracking Results Div
+const productAdminToggle = document.getElementById('product-admin-toggle'); // New: Product Admin Toggle
+const productAdminModal = document.getElementById('product-admin-modal');   // New: Product Admin Modal
+const productAddForm = document.getElementById('product-add-form');         // New: Product Add Form
+const productAddStatus = document.getElementById('product-add-status');     // New: Product Add Status Div
+const productAdminLoginForm = document.getElementById('product-admin-login-form'); // New: Product Admin Login Form
+const productAdminLoginStatus = document.getElementById('product-admin-login-status'); // New: Product Admin Login Status
+const productAdminLoginSection = document.getElementById('product-admin-login-section'); // New: Product Admin Login Section
+const productAddFormSection = document.getElementById('product-add-form-section'); // New: Product Add Form Section
 
-// Configuration for Glitch Proxy
+// Configuration for Render Proxy
 const config = {
   proxyUrl: 'https://odoo-proxy-server-final.onrender.com', // <--- Your Glitch Proxy URL (NO trailing slash)
   apiKey: 's0m3R4nd0mStR1ngF0rMyPr0xyS3cur1ty_xyz123' // <--- Your API Key (must match Glitch .env)
@@ -137,6 +148,8 @@ let odooConfig = {
 
 // Variable to store the Odoo User ID after successful login
 let odooUid = null;
+// Variable to store the Odoo User ID for the product admin (separate login)
+let productAdminUid = null;
 
 // Function to load config from Local Storage (if saved)
 function loadOdooConfig() {
@@ -193,7 +206,15 @@ function updateApiStatus() {
         }
     }
 }
-
+// Hide product admin toggle if main API is not configured/connected
+    if (productAdminToggle) {
+        if (odooUid) { // Only show if main Odoo login is successful
+            productAdminToggle.style.display = 'flex'; // Use flex to align icon and text
+        } else {
+            productAdminToggle.style.display = 'none';
+        }
+    }
+}
 /**
  * Makes a request to the Glitch proxy to interact with Odoo.
  * This function abstracts the communication with your Glitch proxy,
@@ -220,7 +241,7 @@ async function odooProxyFetch(proxyEndpointType, payload) {
         return null;
     }
     if (!config.apiKey) {
-        console.error('Glitch API Key is not configured. Please set config.apiKey in script.js.');
+        console.error('Render API Key is not configured. Please set config.apiKey in script.js.');
         apiStatusElement.textContent = 'API: API Key not set';
         apiStatusElement.classList.remove('connected');
         apiStatusElement.classList.add('disconnected');
@@ -282,7 +303,7 @@ async function odooProxyFetch(proxyEndpointType, payload) {
 
 
 /**
- * Attempts to log in to the Odoo instance using the configured credentials via Glitch proxy.
+ * Attempts to log in to the Odoo instance using the configured credentials via Render proxy.
  * Stores the Odoo User ID (UID) on success.
  * @returns {boolean} True if login is successful, false otherwise.
  */
@@ -293,6 +314,7 @@ async function odooLogin() {
         apiStatusElement.classList.remove('connected');
         apiStatusElement.classList.add('disconnected');
         stopStockPolling(); // Ensure polling is stopped if config is incomplete
+        if (productAdminToggle) productAdminToggle.style.display = 'none'; // Hide product admin toggle
         return false;
     }
 
@@ -313,6 +335,7 @@ async function odooLogin() {
             await fetchOdooProducts(); 
             // Start polling for stock updates
             startStockPolling();
+            if (productAdminToggle) productAdminToggle.style.display = 'flex'; // Show product admin toggle
             return true;
         } else {
             throw new Error('Authentication failed: No user ID returned from proxy.');
@@ -324,6 +347,12 @@ async function odooLogin() {
         apiStatusElement.classList.remove('connected');
         apiStatusElement.classList.add('disconnected');
         stopStockPolling(); // Stop polling if login fails
+        if (productAdminToggle) productAdminToggle.style.display = 'none'; // Hide product admin toggle
+        // Also reset product admin login status
+        productAdminUid = null;
+        if (productAddFormSection) productAddFormSection.style.display = 'none';
+        if (productAdminLoginSection) productAdminLoginSection.style.display = 'block';
+        if (productAdminLoginStatus) productAdminLoginStatus.innerHTML = '';
         return false;
     }
 }
@@ -349,7 +378,7 @@ async function callOdooMethod(model, method, args = [], kwargs = {}) {
         }
     }
 
-    // CORRECTED PAYLOAD STRUCTURE for /web/dataset/call_kw as expected by Glitch proxy
+    // CORRECTED PAYLOAD STRUCTURE for /web/dataset/call_kw as expected by Renderer proxy
     const callKwPayload = {
         odooConfig: odooConfig, // Pass odooConfig for proxy context (contains db, etc.)
         uid: odooUid,
@@ -1155,6 +1184,355 @@ function init() {
 
     // Load Odoo config on startup
     loadOdooConfig();
+}
+// New: Event listener for the Order Tracking link in the header
+    const trackOrderLink = document.getElementById('track-order-link');
+    if (trackOrderLink) {
+        trackOrderLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            showOrderTrackingModal();
+        });
+    }
+
+    // New: Event listener for the Order Tracking form
+    if (orderTrackingForm) {
+        orderTrackingForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await trackOrder();
+        });
+    }
+
+    // New: Event listener for the Product Admin Toggle
+    if (productAdminToggle) {
+        productAdminToggle.addEventListener('click', (e) => {
+            e.preventDefault();
+            // Reset product admin login status and show login form
+            productAdminUid = null;
+            if (productAddFormSection) productAddFormSection.style.display = 'none';
+            if (productAdminLoginSection) productAdminLoginSection.style.display = 'block';
+            if (productAdminLoginStatus) productAdminLoginStatus.innerHTML = '';
+            
+            productAdminModal.style.display = productAdminModal.style.display === 'block' ? 'none' : 'flex'; // Use flex to center modal
+            productAddStatus.innerHTML = ''; // Clear status message when opening
+        });
+    }
+
+    // New: Event listener for the Product Admin Login Form submission
+    if (productAdminLoginForm) {
+        productAdminLoginForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await handleProductAdminLogin();
+        });
+    }
+
+    // New: Event listener for the Product Add Form submission
+    if (productAddForm) {
+        productAddForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await createProductInOdoo();
+        });
+    }
+
+    // Load Odoo config on startup
+    loadOdooConfig();
+}
+
+/**
+ * Displays the Order Tracking modal.
+ */
+function showOrderTrackingModal() {
+    orderTrackingResults.innerHTML = ''; // Clear results when opening
+    orderTrackingModal.style.display = 'flex';
+}
+
+/**
+ * Searches for an order in Odoo and displays its status.
+ */
+async function trackOrder() {
+    const orderNumber = document.getElementById('track-order-number').value.trim();
+    const email = document.getElementById('track-email').value.trim();
+    orderTrackingResults.innerHTML = '<p>Searching for order...</p>';
+
+    if (!orderNumber || !email) {
+        orderTrackingResults.innerHTML = '<p class="warning-message">Please enter both order number and email address.</p>';
+        return;
+    }
+
+    const isOdooConnected = !!odooUid;
+    if (!isOdooConnected) {
+        orderTrackingResults.innerHTML = '<p class="warning-message">Cannot connect to Odoo. Please check API configuration.</p>';
+        return;
+    }
+
+    try {
+        // Search for partner (customer) by email
+        const partners = await callOdooMethod('res.partner', 'search_read', [[['email', '=', email]]], { fields: ['id', 'name'] });
+
+        if (!partners || partners.length === 0) {
+            orderTrackingResults.innerHTML = '<p class="warning-message">No customer found with this email address.</p>';
+            return;
+        }
+        const customerId = partners[0].id;
+
+        // Search for the sales order by order number and customer ID
+        const orders = await callOdooMethod('sale.order', 'search_read', [
+            [['name', '=', orderNumber], ['partner_id', '=', customerId]]
+        ], {
+            fields: ['name', 'state', 'partner_id', 'order_line', 'picking_ids']
+        });
+
+        if (!orders || orders.length === 0) {
+            orderTrackingResults.innerHTML = '<p class="warning-message">Order not found or does not match the email address.</p>';
+            return;
+        }
+
+        const order = orders[0];
+        let orderStatusText = '';
+        let statusClass = '';
+
+        // Map Odoo order states to user-friendly text and a class for styling
+        switch (order.state) {
+            case 'draft':
+                orderStatusText = 'Draft';
+                statusClass = 'status-draft';
+                break;
+            case 'sent':
+                orderStatusText = 'Sent';
+                statusClass = 'status-sent';
+                break;
+            case 'sale':
+                orderStatusText = 'Confirmed';
+                statusClass = 'status-sale';
+                break;
+            case 'done':
+                orderStatusText = 'Completed';
+                statusClass = 'status-done';
+                break;
+            case 'cancel':
+                orderStatusText = 'Cancelled';
+                statusClass = 'status-cancel';
+                break;
+            default:
+                orderStatusText = order.state;
+                statusClass = '';
+        }
+
+        let pickingStatusText = 'Not yet shipped';
+        let pickingStatusClass = 'status-waiting';
+
+        if (order.picking_ids && order.picking_ids.length > 0) {
+            // Fetch details of the picking(s)
+            const pickings = await callOdooMethod('stock.picking', 'read', order.picking_ids, { fields: ['name', 'state'] });
+            if (pickings && pickings.length > 0) {
+                const picking = pickings[0]; // Assume the first picking
+                switch (picking.state) {
+                    case 'draft':
+                        pickingStatusText = 'Delivery: Draft';
+                        pickingStatusClass = 'status-draft';
+                        break;
+                    case 'waiting':
+                        pickingStatusText = 'Delivery: Waiting for availability';
+                        pickingStatusClass = 'status-waiting';
+                        break;
+                    case 'confirmed':
+                        pickingStatusText = 'Delivery: Confirmed';
+                        pickingStatusClass = 'status-sent';
+                        break;
+                    case 'assigned':
+                        pickingStatusText = 'Delivery: Ready for shipment';
+                        pickingStatusClass = 'status-assigned';
+                        break;
+                    case 'done':
+                        pickingStatusText = 'Delivery: Shipped';
+                        pickingStatusClass = 'status-done';
+                        break;
+                    case 'cancel':
+                        pickingStatusText = 'Delivery: Cancelled';
+                        pickingStatusClass = 'status-cancel';
+                        break;
+                    default:
+                        pickingStatusText = `Delivery: ${picking.state}`;
+                        pickingStatusClass = '';
+                }
+            }
+        }
+
+        // Fetch product details for order lines
+        const orderLineProductIds = order.order_line.map(lineId => lineId); // order_line contains IDs of sale.order.line
+        const orderLinesDetails = await callOdooMethod('sale.order.line', 'read', orderLineProductIds, { fields: ['product_id', 'product_uom_qty', 'price_unit'] });
+
+        let productsInOrder = '';
+        if (orderLinesDetails && orderLinesDetails.length > 0) {
+            for (const line of orderLinesDetails) {
+                // Fetch product name using product_id[1] which is the name in Odoo's many2one field
+                const productName = line.product_id[1];
+                productsInOrder += `<li>${productName} (x${line.product_uom_qty}) - $${line.price_unit.toFixed(2)}</li>`;
+            }
+        } else {
+            productsInOrder = '<li>No products found for this order.</li>';
+        }
+
+
+        orderTrackingResults.innerHTML = `
+            <h4>Order: ${order.name}</h4>
+            <p>Status: <span class="status-indicator ${statusClass}">${orderStatusText}</span></p>
+            <p>Delivery Status: <span class="status-indicator ${pickingStatusClass}">${pickingStatusText}</span></p>
+            <h4>Ordered Products:</h4>
+            <ul>
+                ${productsInOrder}
+            </ul>
+        `;
+
+    } catch (error) {
+        console.error('Error tracking order:', error);
+        orderTrackingResults.innerHTML = `<p class="warning-message">An error occurred while tracking the order. Please ensure Odoo API is configured correctly and the order number and email are valid.</p>`;
+    }
+}
+
+/**
+ * Handles the login for the product administration panel.
+ * Uses separate credentials for a privileged Odoo user.
+ */
+async function handleProductAdminLogin() {
+    const username = document.getElementById('product-admin-username').value.trim();
+    const password = document.getElementById('product-admin-password').value.trim();
+
+    productAdminLoginStatus.innerHTML = ''; // Clear previous status
+    productAdminLoginStatus.classList.remove('success', 'error');
+
+    if (!odooConfig.url || !odooConfig.db) {
+        productAdminLoginStatus.innerHTML = '<p class="warning-message">Main Odoo API configuration is missing. Please configure it first.</p>';
+        productAdminLoginStatus.classList.add('error');
+        return;
+    }
+    if (!username || !password) {
+        productAdminLoginStatus.innerHTML = '<p class="warning-message">Please enter username and password.</p>';
+        productAdminLoginStatus.classList.add('error');
+        return;
+    }
+
+    productAdminLoginStatus.innerHTML = '<p>Logging in...</p>';
+    productAdminLoginStatus.classList.add('success'); // Use success color for "processing"
+
+    try {
+        const loginPayload = {
+            odooConfig: { ...odooConfig, username, password } // Use provided credentials for this login
+        };
+        const result = await odooProxyFetch('login', loginPayload);
+
+        if (result) {
+            productAdminUid = result; // Store the UID for the product admin session
+            productAdminLoginStatus.innerHTML = '<p>Login successful! You can now add products.</p>';
+            productAdminLoginStatus.classList.remove('error');
+            productAdminLoginStatus.classList.add('success');
+            
+            // Show product add form and hide login form
+            if (productAdminLoginSection) productAdminLoginSection.style.display = 'none';
+            if (productAddFormSection) productAddFormSection.style.display = 'block';
+        } else {
+            throw new Error('Authentication failed for product admin.');
+        }
+    } catch (error) {
+        console.error('Product admin login failed:', error);
+        productAdminUid = null;
+        productAdminLoginStatus.innerHTML = `<p class="warning-message">Login failed: ${error.message || 'Invalid credentials.'}</p>`;
+        productAdminLoginStatus.classList.remove('success');
+        productAdminLoginStatus.classList.add('error');
+    }
+}
+
+/**
+ * Creates a new product in Odoo via the admin panel.
+ */
+async function createProductInOdoo() {
+    const productName = document.getElementById('product-name').value.trim();
+    const productPrice = parseFloat(document.getElementById('product-price').value);
+    const productImage = document.getElementById('product-image-url').value.trim();
+    const productStock = parseInt(document.getElementById('product-stock').value);
+
+    productAddStatus.innerHTML = ''; // Clear previous status
+    productAddStatus.classList.remove('success', 'error');
+
+    if (!productAdminUid) { // Check if product admin is logged in
+        productAddStatus.innerHTML = '<p class="warning-message">You are not logged in for product administration. Please log in above.</p>';
+        productAddStatus.classList.add('error');
+        return;
+    }
+
+    if (!productName || isNaN(productPrice) || isNaN(productStock)) {
+        productAddStatus.innerHTML = '<p class="warning-message">Please fill in all required fields (Name, Price, Initial Stock) with valid values.</p>';
+        productAddStatus.classList.add('error');
+        return;
+    }
+
+    try {
+        productAddStatus.innerHTML = '<p>Adding product to Odoo...</p>';
+        productAddStatus.classList.add('success'); // Use success color for "processing"
+
+        const productData = {
+            name: productName,
+            list_price: productPrice, // Sale price
+            standard_price: productPrice, // Cost price (can be same as sale price for simplicity)
+            qty_available: productStock, // Initial stock
+            type: 'product', // 'product' for storable products
+            // If you want to upload image, you'd need to convert it to base64
+            // For now, we'll just store the URL or leave it blank if no URL provided
+            image_1920: await convertImageUrlToBase64(productImage) // Convert image URL to base64
+        };
+
+        // Use productAdminUid for this specific Odoo call
+        const newProductId = await callOdooMethod('product.template', 'create', [productData], {}, productAdminUid);
+
+        if (newProductId) {
+            productAddStatus.innerHTML = `<p>Product "${productName}" added to Odoo with ID: ${newProductId}.</p>`;
+            productAddStatus.classList.remove('error');
+            productAddStatus.classList.add('success');
+            // Clear form
+            productAddForm.reset();
+            // Refresh product list on main page
+            fetchOdooProducts();
+        } else {
+            throw new Error('Failed to get new product ID from Odoo.');
+        }
+
+    } catch (error) {
+        console.error('Error adding product to Odoo:', error);
+        productAddStatus.innerHTML = `<p class="warning-message">Failed to add product: ${error.message || 'An unexpected error occurred.'}</p>`;
+        productAddStatus.classList.remove('success');
+        productAddStatus.classList.add('error');
+    }
+}
+
+/**
+ * Converts an image URL to a base64 string.
+ * This is needed because Odoo's image_1920 field expects base64 data.
+ * @param {string} url The URL of the image.
+ * @returns {Promise<string>} A base64 encoded string of the image.
+ */
+async function convertImageUrlToBase64(url) {
+    if (!url) return false; // Return false or empty string if no URL is provided
+
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status} for image URL: ${url}`);
+        }
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                // Remove the "data:image/jpeg;base64," prefix
+                const base64data = reader.result.split(',')[1];
+                resolve(base64data);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    } catch (error) {
+        console.error('Error converting image URL to base64:', error);
+        showNotification('Failed to load product image. Please check the URL.');
+        return false; // Return false on error
+    }
 }
 
 // Start the app when DOM is loaded
