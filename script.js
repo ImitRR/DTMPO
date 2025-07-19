@@ -132,7 +132,7 @@ const productAdminLoginStatus = document.getElementById('product-admin-login-sta
 const productAdminLoginSection = document.getElementById('product-admin-login-section'); // New: Product Admin Login Section
 const productAddFormSection = document.getElementById('product-add-form-section'); // New: Product Add Form Section
 
-// Configuration for Render Proxy
+// Configuration for Glitch Proxy
 const config = {
   proxyUrl: 'https://odoo-proxy-server-final.onrender.com', // <--- Your Glitch Proxy URL (NO trailing slash)
   apiKey: 's0m3R4nd0mStR1ngF0rMyPr0xyS3cur1ty_xyz123' // <--- Your API Key (must match Glitch .env)
@@ -150,6 +150,7 @@ let odooConfig = {
 let odooUid = null;
 // Variable to store the Odoo User ID for the product admin (separate login)
 let productAdminUid = null;
+
 
 // Function to load config from Local Storage (if saved)
 function loadOdooConfig() {
@@ -194,19 +195,21 @@ function saveOdooConfig(url, db, username, password) {
 // Update API Status display
 function updateApiStatus() {
     const apiStatusElement = document.getElementById('api-status');
+    const productAdminToggle = document.getElementById('product-admin-toggle');
+
     if (apiStatusElement) {
         if (odooConfig.url && odooConfig.db && odooConfig.username && odooConfig.password) {
-            apiStatusElement.textContent = 'API: Configured (not yet connected)';
+            apiStatusElement.textContent = 'API Status: Configured (not yet connected)';
             apiStatusElement.classList.remove('disconnected');
             apiStatusElement.classList.add('connected');
         } else {
-            apiStatusElement.textContent = 'API: Not Configured';
+            apiStatusElement.textContent = 'API Status: Not Configured';
             apiStatusElement.classList.remove('connected');
             apiStatusElement.classList.add('disconnected');
         }
     }
-}
-// Hide product admin toggle if main API is not configured/connected
+
+    // Hide product admin toggle if main API is not configured/connected
     if (productAdminToggle) {
         if (odooUid) { // Only show if main Odoo login is successful
             productAdminToggle.style.display = 'flex'; // Use flex to align icon and text
@@ -215,6 +218,7 @@ function updateApiStatus() {
         }
     }
 }
+
 /**
  * Makes a request to the Glitch proxy to interact with Odoo.
  * This function abstracts the communication with your Glitch proxy,
@@ -230,19 +234,19 @@ async function odooProxyFetch(proxyEndpointType, payload) {
     console.log('--- odooProxyFetch DEBUG ---');
     console.log('config.proxyUrl:', config.proxyUrl);
     console.log('config.apiKey:', config.apiKey);
-    console.log('Proxy Endpoint Type:', proxyEndpointType); // Changed from 'Service'
+    console.log('Proxy Endpoint Type:', proxyEndpointType);
     // --- END DEBUGGING LOGS ---
 
     if (!config.proxyUrl) {
         console.error('Glitch Proxy URL is not configured. Please set config.proxyUrl in script.js.');
-        apiStatusElement.textContent = 'API: Proxy URL not set';
+        apiStatusElement.textContent = 'API Status: Proxy URL not set';
         apiStatusElement.classList.remove('connected');
         apiStatusElement.classList.add('disconnected');
         return null;
     }
     if (!config.apiKey) {
-        console.error('Render API Key is not configured. Please set config.apiKey in script.js.');
-        apiStatusElement.textContent = 'API: API Key not set';
+        console.error('Glitch API Key is not configured. Please set config.apiKey in script.js.');
+        apiStatusElement.textContent = 'API Status: API Key not set';
         apiStatusElement.classList.remove('connected');
         apiStatusElement.classList.add('disconnected');
         return null;
@@ -255,7 +259,7 @@ async function odooProxyFetch(proxyEndpointType, payload) {
         endpoint = '/api/odoo'; // This is the endpoint for general Odoo API calls
     } else {
         console.error(`Unsupported Odoo proxy call type: ${proxyEndpointType}`);
-        apiStatusElement.textContent = `API: Unsupported Odoo call type`;
+        apiStatusElement.textContent = `API Status: Unsupported Odoo call type`;
         apiStatusElement.classList.remove('connected');
         apiStatusElement.classList.add('disconnected');
         return null;
@@ -303,14 +307,16 @@ async function odooProxyFetch(proxyEndpointType, payload) {
 
 
 /**
- * Attempts to log in to the Odoo instance using the configured credentials via Render proxy.
+ * Attempts to log in to the Odoo instance using the configured credentials via Glitch proxy.
  * Stores the Odoo User ID (UID) on success.
  * @returns {boolean} True if login is successful, false otherwise.
  */
 async function odooLogin() {
     const apiStatusElement = document.getElementById('api-status');
+    const productAdminToggle = document.getElementById('product-admin-toggle');
+
     if (!odooConfig.url || !odooConfig.db || !odooConfig.username || !odooConfig.password) {
-        apiStatusElement.textContent = 'API: Not Configured';
+        apiStatusElement.textContent = 'API Status: Not Configured';
         apiStatusElement.classList.remove('connected');
         apiStatusElement.classList.add('disconnected');
         stopStockPolling(); // Ensure polling is stopped if config is incomplete
@@ -327,7 +333,7 @@ async function odooLogin() {
 
         if (result) { // result directly contains uid on successful authentication
             odooUid = result; // Store the user ID as UID
-            apiStatusElement.textContent = 'API: Connected';
+            apiStatusElement.textContent = 'API Status: Connected';
             apiStatusElement.classList.remove('disconnected');
             apiStatusElement.classList.add('connected');
             console.log('Odoo login successful. UID:', odooUid);
@@ -343,7 +349,7 @@ async function odooLogin() {
     } catch (error) {
         console.error('Odoo login failed:', error);
         odooUid = null;
-        apiStatusElement.textContent = `API: Disconnected (${error.message})`;
+        apiStatusElement.textContent = `API Status: Disconnected (${error.message})`;
         apiStatusElement.classList.remove('connected');
         apiStatusElement.classList.add('disconnected');
         stopStockPolling(); // Stop polling if login fails
@@ -364,24 +370,25 @@ async function odooLogin() {
  * @param {string} method - The method to call on the model (e.g., 'search_read', 'create', 'write').
  * @param {Array} args - Positional arguments for the method.
  * @param {Object} kwargs - Keyword arguments (dictionary) for the method.
+ * @param {number|null} [specificUid=null] - Optional UID to use for this specific call (e.g., for product admin login).
  * @returns {Promise<any|null>} The result of the Odoo call, or null if an error occurs.
  */
-async function callOdooMethod(model, method, args = [], kwargs = {}) {
-    // Attempt to log in if not already authenticated
-    if (!odooUid) {
+async function callOdooMethod(model, method, args = [], kwargs = {}, specificUid = null) {
+    const targetUid = specificUid || odooUid; // Use specificUid if provided, else main odooUid
+
+    if (!targetUid) {
         console.warn('Not logged in to Odoo. Attempting to log in automatically before calling Odoo method...');
-        const loggedIn = await odooLogin();
+        const loggedIn = await odooLogin(); // This will try to log in with main credentials
         if (!loggedIn) {
             showNotification('Failed to connect to Odoo for data retrieval. Please check configuration.');
-            // Polling will be stopped by odooLogin if it fails
             return null;
         }
     }
 
-    // CORRECTED PAYLOAD STRUCTURE for /web/dataset/call_kw as expected by Renderer proxy
+    // CORRECTED PAYLOAD STRUCTURE for /web/dataset/call_kw as expected by Glitch proxy
     const callKwPayload = {
         odooConfig: odooConfig, // Pass odooConfig for proxy context (contains db, etc.)
-        uid: odooUid,
+        uid: targetUid, // Use the determined UID
         model: model,   // Direct 'model' parameter for Odoo's call_kw
         method: method, // Direct 'method' parameter for Odoo's call_kw
         args: args,     // Positional arguments (e.g., domain)
@@ -488,7 +495,7 @@ function displayProducts() {
                 <h3 class="product-title">${product.name}</h3>
                 <div class="product-price">
                     <span class="current-price">$${product.price.toFixed(2)}</span>
-                    ${product.originalPrice ? `<span class="original-price">$${product.originalPrice.toFixed(2)}</span>` : ''}
+                    ${product.originalPrice && product.originalPrice > product.price ? `<span class="original-price">$${product.originalPrice.toFixed(2)}</span>` : ''}
                 </div>
                 <p class="stock-info ${stockClass}">${stockText}</p>
                 <button class="add-to-cart" data-id="${product.id}" ${isOutOfStock ? 'disabled' : ''}>
@@ -867,7 +874,7 @@ async function placeOrder() {
             // 1. Find or Create Customer (res.partner)
             let customerId;
             console.log('Attempting to find or create customer in Odoo...');
-            const existingPartners = await callOdooMethod('res.partner', 'search_read', [[['email', '=', email]]], { fields: ['id'] });
+            const existingPartners = await callOdooMethod('res.partner', 'search_read', [[['email', '=', email]]], { fields: ['id', 'name'] }); // Added 'name' to fields
             
             if (existingPartners && existingPartners.length > 0) {
                 customerId = existingPartners[0].id;
@@ -964,12 +971,12 @@ async function placeOrder() {
             // --- END NEW STEP ---
 
             console.log('Order process completed: Success path with Odoo interaction.');
-            odooMessage = `<p>Odoo Sales Order ID: <strong>${saleOrderId}</strong></p>`;
+            odooMessage = `<p>Odoo Sales Order ID: <strong>${order.name || saleOrderId}</strong></p>`; // Use order.name if available, otherwise saleOrderId
 
         } catch (odooError) {
             console.error('Error during Odoo order processing:', odooError);
             showNotification(`Odoo connection active, but failed to process order: ${odooError.message || 'An unexpected Odoo error occurred.'}`);
-            apiStatusElement.textContent = `API: Connected (Order Error)`;
+            apiStatusElement.textContent = `API Status: Connected (Order Error)`;
             apiStatusElement.classList.add('disconnected'); // Show as disconnected due to order error
             odooInteractionSuccessful = false; // Ensure this is false if Odoo part failed
             odooMessage = `<p class="warning-message">Odoo connection active, but order processing failed. Stock not deducted from Odoo. Please check Odoo manually.</p>`;
@@ -978,7 +985,7 @@ async function placeOrder() {
         // --- Odoo NOT Connected Path ---
         console.warn('Odoo is not connected or configured. Proceeding with local checkout only. Stock will not be deducted from Odoo.');
         showNotification('Odoo not connected. Order placed locally. Stock not deducted from Odoo.');
-        apiStatusElement.textContent = 'API: Not Connected (Local Checkout)';
+        apiStatusElement.textContent = 'API Status: Not Connected (Local Checkout)';
         apiStatusElement.classList.remove('connected');
         apiStatusElement.classList.add('disconnected');
         odooInteractionSuccessful = false; // Explicitly set to false
@@ -1077,9 +1084,7 @@ function init() {
                 modal.style.display = 'none';
                 // If closing the order confirmation modal, ensure cart is cleared
                 if (modal.id === 'order-confirmation-modal') {
-                    cart = [];
-                    updateCart();
-                    // Also refresh products based on Odoo connection status
+                    // Cart is already cleared in placeOrder(), just refresh product display
                     const isOdooConnected = !!odooUid;
                     const odooInteractionSuccessful = true; // Assume success if manually closing after confirmation
                     if (isOdooConnected && odooInteractionSuccessful) {
@@ -1102,8 +1107,7 @@ function init() {
             e.target.style.display = 'none';
             // If closing the order confirmation modal by clicking outside, ensure cart is cleared
             if (e.target.id === 'order-confirmation-modal') {
-                cart = [];
-                updateCart();
+                // Cart is already cleared in placeOrder(), just refresh product display
                  const isOdooConnected = !!odooUid;
                  const odooInteractionSuccessful = true; // Assume success if manually closing after confirmation
                  if (isOdooConnected && odooInteractionSuccessful) {
@@ -1149,7 +1153,7 @@ function init() {
     }
 
 
-    // Admin Panel Toggle
+    // Odoo API Admin Panel Toggle
     const adminToggle = document.getElementById('admin-toggle');
     if (adminToggle) { // Check if element exists
         adminToggle.addEventListener('click', () => {
@@ -1161,7 +1165,7 @@ function init() {
     }
 
 
-    // Admin Panel Form Submission
+    // Odoo API Admin Panel Form Submission
     const apiConfigForm = document.getElementById('api-config-form');
     if (apiConfigForm) { // Check if element exists
         apiConfigForm.addEventListener('submit', async function(e) {
@@ -1181,11 +1185,7 @@ function init() {
         });
     }
 
-
-    // Load Odoo config on startup
-    loadOdooConfig();
-}
-// New: Event listener for the Order Tracking link in the header
+    // New: Event listener for the Order Tracking link in the header
     const trackOrderLink = document.getElementById('track-order-link');
     if (trackOrderLink) {
         trackOrderLink.addEventListener('click', (e) => {
@@ -1534,6 +1534,7 @@ async function convertImageUrlToBase64(url) {
         return false; // Return false on error
     }
 }
+
 
 // Start the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', init);
