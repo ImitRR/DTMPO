@@ -296,7 +296,9 @@ async function odooProxyFetch(proxyEndpointType, payload) {
             }
             // Log the full Odoo error object for better debugging
             console.error('Full Odoo Error Object:', data.error);
-            throw new Error(`Odoo Error via Proxy: ${data.error.message || JSON.stringify(data.error)}`);
+            // Include data.error.data for more specific Odoo validation errors
+            const odooErrorMessage = data.error.data ? `${data.error.message} Details: ${JSON.stringify(data.error.data)}` : data.error.message;
+            throw new Error(`Odoo Error via Proxy: ${odooErrorMessage || JSON.stringify(data.error)}`);
         }
         return data.result; // Assuming the proxy returns Odoo's 'result' directly
     } catch (error) {
@@ -1104,6 +1106,36 @@ async function getDefaultProductCategoryId() {
     }
 }
 
+/**
+ * Fetches the default warehouse location ID from Odoo.
+ * Tries to find 'WH/Stock' first, then any location.
+ * @returns {Promise<number|null>} The ID of a stock location, or null if none found.
+ */
+async function getDefaultStockLocationId() {
+    try {
+        // Try to find 'WH/Stock' location
+        let locations = await callOdooMethod('stock.location', 'search_read', [[['name', '=', 'Stock']]], { fields: ['id'] }, productAdminUid);
+        if (locations && locations.length > 0) {
+            console.log('Found stock location "WH/Stock" ID:', locations[0].id);
+            return locations[0].id;
+        }
+
+        // If still not found, get the first available location
+        locations = await callOdooMethod('stock.location', 'search_read', [], { fields: ['id'], limit: 1 }, productAdminUid);
+        if (locations && locations.length > 0) {
+            console.warn('Could not find specific default stock location, using first available location ID:', locations[0].id);
+            return locations[0].id;
+        }
+
+        console.warn('No stock locations found in Odoo.');
+        return null;
+    } catch (error) {
+        console.error('Error fetching default stock location:', error);
+        return null;
+    }
+}
+
+
 // Initialize the app
 function init() {
     // Always display products initially from the hardcoded array.
@@ -1527,36 +1559,88 @@ async function createProductInOdoo() {
             return;
         }
 
+        // --- Step 1: Create the product.template record ---
         const productData = {
             name: productName,
             list_price: productPrice, // Sale price
             standard_price: productPrice, // Cost price (can be same as sale price for simplicity)
-            qty_available: productStock, // Initial stock
             type: 'product', // 'product' for storable products
             image_1920: base64Image || false, // Use base64 image or false if conversion failed
             categ_id: defaultCategoryId // Add the product category ID
         };
 
-        console.log('Product data being sent to Odoo:', productData); // Log the payload
-
-        // Use productAdminUid for this specific Odoo call
+        console.log('Attempting to create product.template with data:', productData);
         const newProductId = await callOdooMethod('product.template', 'create', [productData], {}, productAdminUid);
 
-        if (newProductId) {
-            productAddStatus.innerHTML = `<p>Product "${productName}" added to Odoo with ID: ${newProductId}.</p>`;
-            productAddStatus.classList.remove('error');
-            productAddStatus.classList.add('success');
-            // Clear form
-            productAddForm.reset();
-            // Refresh product list on main page
-            fetchOdooProducts();
-        } else {
-            // The error message here is crucial. If newProductId is null, it means Odoo's create method
-            // didn't return an ID, which usually implies a server-side validation error.
-            // The odooProxyFetch function already logs the full Odoo error object.
-            console.error('Odoo did not return a new product ID. This usually means Odoo rejected the creation. Check Odoo server logs for more details.');
+        if (!newProductId) {
+            console.error('Odoo did not return a new product ID after creation. This usually means Odoo rejected the creation. Check Odoo server logs for more details.');
             throw new Error('Failed to create product in Odoo. Please check Odoo server logs for specific validation errors (e.g., missing required fields, invalid data).');
         }
+        console.log(`Product "${productName}" created in Odoo with ID: ${newProductId}.`);
+
+        // --- Step 2: Set initial stock using stock.inventory ---
+        if (productStock > 0) {
+            const defaultLocationId = await getDefaultStockLocationId();
+            if (!defaultLocationId) {
+                console.warn('Could not find a default stock location. Initial stock will not be set for the new product.');
+                showNotification('Warning: Could not set initial stock. No default stock location found in Odoo.');
+            } else {
+                console.log(`Attempting to set initial stock (${productStock}) for product ID ${newProductId} at location ${defaultLocationId}.`);
+
+                // Create an inventory adjustment record
+                const inventoryData = {
+                    name: `Initial Stock for ${productName}`,
+                    location_id: defaultLocationId,
+                    filter: 'partial', // Use partial to only adjust specified products
+                };
+
+                const inventoryId = await callOdooMethod('stock.inventory', 'create', [inventoryData], {}, productAdminUid);
+
+                if (!inventoryId) {
+                    throw new Error('Failed to create stock.inventory record.');
+                }
+                console.log('Created stock.inventory record with ID:', inventoryId);
+
+                // Prepare inventory lines for the new product
+                const inventoryLineData = {
+                    inventory_id: inventoryId,
+                    product_id: newProductId,
+                    product_qty: productStock,
+                    location_id: defaultLocationId,
+                };
+
+                console.log('Attempting to create stock.inventory.line with data:', inventoryLineData);
+                const inventoryLineId = await callOdooMethod('stock.inventory.line', 'create', [inventoryLineData], {}, productAdminUid);
+
+                if (!inventoryLineId) {
+                    throw new Error('Failed to create stock.inventory.line record.');
+                }
+                console.log('Created stock.inventory.line record with ID:', inventoryLineId);
+
+                // Validate the inventory adjustment
+                console.log('Attempting to validate stock.inventory record:', inventoryId);
+                const validateInventoryResult = await callOdooMethod('stock.inventory', 'action_validate', [[inventoryId]], {
+                    context: {
+                        discard_empty_inventory: true // Discard lines with zero quantity
+                    }
+                }, productAdminUid);
+
+                if (!validateInventoryResult) {
+                    console.warn('Failed to validate stock.inventory. This might mean stock was not updated. Check Odoo manually.');
+                    showNotification('Warning: Failed to confirm initial stock in Odoo. Check Odoo manually.');
+                } else {
+                    console.log('Stock.inventory validated successfully. Stock updated.');
+                }
+            }
+        }
+
+        productAddStatus.innerHTML = `<p>Product "${productName}" added to Odoo and stock updated.</p>`;
+        productAddStatus.classList.remove('error');
+        productAddStatus.classList.add('success');
+        // Clear form
+        productAddForm.reset();
+        // Refresh product list on main page
+        fetchOdooProducts();
 
     } catch (error) {
         console.error('Error adding product to Odoo:', error);
