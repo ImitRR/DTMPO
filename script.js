@@ -1155,7 +1155,7 @@ function init() {
                 modal.style.display = 'none';
                 // If closing the order confirmation modal, ensure cart is cleared
                 if (modal.id === 'order-confirmation-modal') {
-                    // Cart is already cleared in placeOrder(), just refresh product display
+                    // Cart is already cleared in placePlaceOrder(), just refresh product display
                     const isOdooConnected = !!odooUid;
                     const odooInteractionSuccessful = true; // Assume success if manually closing after confirmation
                     if (isOdooConnected && odooInteractionSuccessful) {
@@ -1178,7 +1178,7 @@ function init() {
             e.target.style.display = 'none';
             // If closing the order confirmation modal by clicking outside, ensure cart is cleared
             if (e.target.id === 'order-confirmation-modal') {
-                // Cart is already cleared in placeOrder(), just refresh product display
+                // Cart is already cleared in placePlaceOrder(), just refresh product display
                  const isOdooConnected = !!odooUid;
                  const odooInteractionSuccessful = true; // Assume success if manually closing after confirmation
                  if (isOdooConnected && odooInteractionSuccessful) {
@@ -1564,7 +1564,7 @@ async function createProductInOdoo() {
             name: productName,
             list_price: productPrice, // Sale price
             standard_price: productPrice, // Cost price (can be same as sale price for simplicity)
-            type: 'product', // 'product' for storable products
+            // Removed 'type: "product"' as it was causing a ValueError in Odoo
             image_1920: base64Image || false, // Use base64 image or false if conversion failed
             categ_id: defaultCategoryId // Add the product category ID
         };
