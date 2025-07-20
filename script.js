@@ -294,6 +294,8 @@ async function odooProxyFetch(proxyEndpointType, payload) {
                 console.error('Odoo session expired or authentication failed. Stopping polling.');
                 stopStockPolling(); // Only stop polling for clear auth issues
             }
+            // Log the full Odoo error object for better debugging
+            console.error('Full Odoo Error Object:', data.error);
             throw new Error(`Odoo Error via Proxy: ${data.error.message || JSON.stringify(data.error)}`);
         }
         return data.result; // Assuming the proxy returns Odoo's 'result' directly
@@ -1066,6 +1068,41 @@ function showNotification(message) {
     }, 5000); // Display for 5 seconds
 }
 
+/**
+ * Fetches a default product category ID from Odoo.
+ * Tries to find 'All / All' first, then 'All / Saleable', then any category.
+ * @returns {Promise<number|null>} The ID of a product category, or null if none found.
+ */
+async function getDefaultProductCategoryId() {
+    try {
+        // Try to find 'All / All' category
+        let categories = await callOdooMethod('product.category', 'search_read', [[['name', '=', 'All / All']]], { fields: ['id'] }, productAdminUid);
+        if (categories && categories.length > 0) {
+            console.log('Found product category "All / All" ID:', categories[0].id);
+            return categories[0].id;
+        }
+
+        // If not found, try to find 'All / Saleable'
+        categories = await callOdooMethod('product.category', 'search_read', [[['name', '=', 'All / Saleable']]], { fields: ['id'] }, productAdminUid);
+        if (categories && categories.length > 0) {
+            console.log('Found product category "All / Saleable" ID:', categories[0].id);
+            return categories[0].id;
+        }
+
+        // If still not found, get the first available category
+        categories = await callOdooMethod('product.category', 'search_read', [], { fields: ['id'], limit: 1 }, productAdminUid);
+        if (categories && categories.length > 0) {
+            console.warn('Could not find specific default category, using first available category ID:', categories[0].id);
+            return categories[0].id;
+        }
+
+        console.warn('No product categories found in Odoo.');
+        return null;
+    } catch (error) {
+        console.error('Error fetching default product category:', error);
+        return null;
+    }
+}
 
 // Initialize the app
 function init() {
@@ -1471,16 +1508,36 @@ async function createProductInOdoo() {
         productAddStatus.innerHTML = '<p>Adding product to Odoo...</p>';
         productAddStatus.classList.add('success'); // Use success color for "processing"
 
+        let base64Image = false; // Default to false if image conversion fails
+        if (productImage) {
+            try {
+                base64Image = await convertImageUrlToBase64(productImage);
+            } catch (imageError) {
+                console.warn('Image conversion failed, proceeding without image:', imageError);
+                showNotification('Warning: Image could not be converted/loaded. Product will be added without an image.');
+                base64Image = false; // Ensure it's false if there was an error
+            }
+        }
+
+        // Get a default product category ID
+        const defaultCategoryId = await getDefaultProductCategoryId();
+        if (!defaultCategoryId) {
+            productAddStatus.innerHTML = '<p class="warning-message">Failed to find a default product category in Odoo. Product cannot be added.</p>';
+            productAddStatus.classList.add('error');
+            return;
+        }
+
         const productData = {
             name: productName,
             list_price: productPrice, // Sale price
             standard_price: productPrice, // Cost price (can be same as sale price for simplicity)
             qty_available: productStock, // Initial stock
             type: 'product', // 'product' for storable products
-            // If you want to upload image, you'd need to convert it to base64
-            // For now, we'll just store the URL or leave it blank if no URL provided
-            image_1920: await convertImageUrlToBase64(productImage) // Convert image URL to base64
+            image_1920: base64Image || false, // Use base64 image or false if conversion failed
+            categ_id: defaultCategoryId // Add the product category ID
         };
+
+        console.log('Product data being sent to Odoo:', productData); // Log the payload
 
         // Use productAdminUid for this specific Odoo call
         const newProductId = await callOdooMethod('product.template', 'create', [productData], {}, productAdminUid);
@@ -1494,7 +1551,11 @@ async function createProductInOdoo() {
             // Refresh product list on main page
             fetchOdooProducts();
         } else {
-            throw new Error('Failed to get new product ID from Odoo.');
+            // The error message here is crucial. If newProductId is null, it means Odoo's create method
+            // didn't return an ID, which usually implies a server-side validation error.
+            // The odooProxyFetch function already logs the full Odoo error object.
+            console.error('Odoo did not return a new product ID. This usually means Odoo rejected the creation. Check Odoo server logs for more details.');
+            throw new Error('Failed to create product in Odoo. Please check Odoo server logs for specific validation errors (e.g., missing required fields, invalid data).');
         }
 
     } catch (error) {
@@ -1509,7 +1570,7 @@ async function createProductInOdoo() {
  * Converts an image URL to a base64 string.
  * This is needed because Odoo's image_1920 field expects base64 data.
  * @param {string} url The URL of the image.
- * @returns {Promise<string>} A base64 encoded string of the image.
+ * @returns {Promise<string|boolean>} A base64 encoded string of the image, or false if an error occurs.
  */
 async function convertImageUrlToBase64(url) {
     if (!url) return false; // Return false or empty string if no URL is provided
@@ -1527,13 +1588,22 @@ async function convertImageUrlToBase64(url) {
                 const base64data = reader.result.split(',')[1];
                 resolve(base64data);
             };
-            reader.onerror = reject;
+            reader.onerror = (error) => {
+                console.error('FileReader error:', error);
+                reject(error);
+            };
             reader.readAsDataURL(blob);
         });
     } catch (error) {
         console.error('Error converting image URL to base64:', error);
-        showNotification('Failed to load product image. Please check the URL.');
-        return false; // Return false on error
+        // Specifically catch TypeError for CORS issues
+        if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+            console.warn('CORS issue likely for image:', url);
+            showNotification('Warning: Image could not be loaded due to security restrictions (CORS).');
+        } else {
+            showNotification('Failed to load product image. Please check the URL.');
+        }
+        return false; // Return false on any error during fetch or conversion
     }
 }
 
