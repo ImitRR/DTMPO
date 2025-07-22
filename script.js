@@ -134,10 +134,10 @@ const productAddFormSection = document.getElementById('product-add-form-section'
 
 // Configuration for Render Proxy
 const config = {
-  // IMPORTANT: Replace 'https://odoo-proxy-server-final.onrender.com' with your actual Render proxy URL
-  // and 's0m3R4nd0mStR1ngF0rMyPr0xyS3cur1ty_xyz123' with your actual API key from Render's environment variables.
-  proxyUrl: 'https://odoo-proxy-server-final.onrender.com', // <--- Your Render Proxy URL (NO trailing slash)
-  apiKey: 's0m3R4nd0mStR1ngF0rMyPr0xyS3cur1ty_xyz123' // <--- Your API Key (must match Render API_KEY env var)
+  // 'https://odoo-proxy-server-final.onrender.com' moet als proxy worden ingesteld
+  // en je API key die je op Render  in de environment variables hbe geplaats moet je hier gebruiken
+  proxyUrl: 'https://odoo-proxy-server-final.onrender.com', // <--- hier Render Proxy URL 
+  apiKey: 's0m3R4nd0mStR1ngF0rMyPr0xyS3cur1ty_xyz123' // <--- Hier je API key van render
 };
 
 // Odoo API Configuration (will be populated from Admin Panel)
