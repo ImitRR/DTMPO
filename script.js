@@ -132,7 +132,7 @@ const productAdminLoginStatus = document.getElementById('product-admin-login-sta
 const productAdminLoginSection = document.getElementById('product-admin-login-section'); // New: Product Admin Login Section
 const productAddFormSection = document.getElementById('product-add-form-section'); // New: Product Add Form Section
 
-// Configuration for Glitch Proxy
+// Configuration for Render Proxy
 const config = {
   // IMPORTANT: Replace 'https://odoo-proxy-server-final.onrender.com' with your actual Render proxy URL
   // and 's0m3R4nd0mStR1ngF0rMyPr0xyS3cur1ty_xyz123' with your actual API key from Render's environment variables.
@@ -222,8 +222,8 @@ function updateApiStatus() {
 }
 
 /**
- * Makes a request to the Glitch proxy to interact with Odoo.
- * This function abstracts the communication with your Glitch proxy,
+ * Makes a request to the render proxy to interact with Odoo.
+ * This function abstracts the communication with your render proxy,
  * which in turn handles the JSON-RPC 2.0 calls to Odoo's /web/session/authenticate or /web/dataset/call_kw.
  * @param {string} proxyEndpointType The type of Odoo call for the proxy ('login' or 'odoo_call').
  * @param {Object} payload The specific payload to send to the proxy.
@@ -239,15 +239,15 @@ async function odooProxyFetch(proxyEndpointType, payload) {
     console.log('Proxy Endpoint Type:', proxyEndpointType);
     // --- END DEBUGGING LOGS ---
 
-    if (!config.proxyUrl || config.proxyUrl === 'YOUR_GLITCH_PROXY_URL_HERE') {
-        console.error('Glitch Proxy URL is not configured. Please set config.proxyUrl in script.js.');
+    if (!config.proxyUrl || config.proxyUrl === 'YOUR_render_PROXY_URL_HERE') {
+        console.error('render Proxy URL is not configured. Please set config.proxyUrl in script.js.');
         apiStatusElement.textContent = 'API Status: Proxy URL not set';
         apiStatusElement.classList.remove('connected');
         apiStatusElement.classList.add('disconnected');
         return null;
     }
-    if (!config.apiKey || config.apiKey === 'YOUR_GLITCH_API_KEY_HERE') {
-        console.error('Glitch API Key is not configured. Please set config.apiKey in script.js.');
+    if (!config.apiKey || config.apiKey === 'YOUR_render_API_KEY_HERE') {
+        console.error('render API Key is not configured. Please set config.apiKey in script.js.');
         apiStatusElement.textContent = 'API Status: API Key not set';
         apiStatusElement.classList.remove('connected');
         apiStatusElement.classList.add('disconnected');
@@ -313,7 +313,7 @@ async function odooProxyFetch(proxyEndpointType, payload) {
 
 
 /**
- * Attempts to log in to the Odoo instance using the configured credentials via Glitch proxy.
+ * Attempts to log in to the Odoo instance using the configured credentials via render proxy.
  * Stores the Odoo User ID (UID) on success.
  * @returns {boolean} True if login is successful, false otherwise.
  */
@@ -370,7 +370,7 @@ async function odooLogin() {
 }
 
 /**
- * Generic function to call any Odoo model method using call_kw via Glitch proxy.
+ * Generic function to call any Odoo model method using call_kw via render proxy.
  * Automatically attempts to log in if not already authenticated.
  * @param {string} model - The Odoo model name (e.g., 'product.product').
  * @param {string} method - The method to call on the model (e.g., 'search_read', 'create', 'write').
@@ -391,7 +391,7 @@ async function callOdooMethod(model, method, args = [], kwargs = {}, specificUid
         }
     }
 
-    // CORRECTED PAYLOAD STRUCTURE for /web/dataset/call_kw as expected by Glitch proxy
+    // CORRECTED PAYLOAD STRUCTURE for /web/dataset/call_kw as expected by render proxy
     const callKwPayload = {
         odooConfig: odooConfig, // Pass odooConfig for proxy context (contains db, etc.)
         uid: targetUid, // Use the determined UID
@@ -414,7 +414,7 @@ async function callOdooMethod(model, method, args = [], kwargs = {}, specificUid
 }
 
 /**
- * Fetches product data from Odoo via the Glitch proxy.
+ * Fetches product data from Odoo via the render proxy.
  * Updates the 'products' array only if the fetch is successful.
  */
 async function fetchOdooProducts() {
